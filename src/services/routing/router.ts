@@ -284,6 +284,14 @@ function shouldFallbackOnUpstream(error: UpstreamError): boolean {
     return FALLBACK_STATUSES.has(error.status)
 }
 
+function shouldAdvanceCursorOnError(entry: RoutingEntry | AccountRoutingEntry, error: UpstreamError): boolean {
+    if (entry.provider !== "antigravity") return true
+    if (isAccountUnavailableError(error)) return true
+    if (error.status === 401 || error.status === 403) return true
+    if (error.status === 429 && isQuotaExhausted(error)) return true
+    return false
+}
+
 function isQuotaExhausted(error: UpstreamError): boolean {
     if (error.status !== 429) return false
     const body = (error.body || "").trim()
@@ -514,9 +522,12 @@ async function createFlowCompletionWithEntries(request: RoutedRequest, entries: 
                 continue
             }
             if (error instanceof UpstreamError && shouldFallbackOnUpstream(error)) {
-                applyFlowRateLimit(entry, error, request.model)
-                if (flowState && index === startIndex) {
-                    advanceFlowCursor(flowState, entries, startIndex)
+                const shouldAdvance = shouldAdvanceCursorOnError(entry, error)
+                if (shouldAdvance) {
+                    applyFlowRateLimit(entry, error, request.model)
+                    if (flowState && index === startIndex) {
+                        advanceFlowCursor(flowState, entries, startIndex)
+                    }
                 }
 
                 if (
@@ -539,7 +550,10 @@ async function createFlowCompletionWithEntries(request: RoutedRequest, entries: 
                             } catch (probeError) {
                                 lastError = probeError as Error
                                 if (probeError instanceof UpstreamError && shouldFallbackOnUpstream(probeError)) {
-                                    applyFlowRateLimit(probeEntry, probeError, request.model)
+                                    const shouldAdvanceProbe = shouldAdvanceCursorOnError(probeEntry, probeError)
+                                    if (shouldAdvanceProbe) {
+                                        applyFlowRateLimit(probeEntry, probeError, request.model)
+                                    }
                                 } else if (isTransientTransportError(probeError)) {
                                     if (probeEntry.provider !== "antigravity") {
                                         authStore.markRateLimited(probeEntry.provider, probeEntry.accountId, 500, (probeError as Error).message)
@@ -682,21 +696,24 @@ async function createAccountCompletionWithEntries(request: RoutedRequest, entrie
                 continue
             }
             if (error instanceof UpstreamError && shouldFallbackOnUpstream(error)) {
-                if (entry.provider === "antigravity") {
-                    accountManager.markRateLimitedFromError(entry.accountId, error.status, error.body, error.retryAfter, request.model)
-                    markRouterRateLimited("antigravity", entry.accountId, 60000)
-                } else {
-                    authStore.markRateLimited(entry.provider, entry.accountId, error.status, error.body, error.retryAfter)
-                    markRouterRateLimited(entry.provider, entry.accountId, 60000)
+                const shouldAdvance = shouldAdvanceCursorOnError(entry, error)
+                if (shouldAdvance) {
+                    if (entry.provider === "antigravity") {
+                        accountManager.markRateLimitedFromError(entry.accountId, error.status, error.body, error.retryAfter, request.model)
+                        markRouterRateLimited("antigravity", entry.accountId, 60000)
+                    } else {
+                        authStore.markRateLimited(entry.provider, entry.accountId, error.status, error.body, error.retryAfter)
+                        markRouterRateLimited(entry.provider, entry.accountId, 60000)
+                    }
+                    advanceAccountCursor(accountState, entries.length, index)
                 }
-                advanceAccountCursor(accountState, entries.length, index)
                 continue
             }
             if (isTransientTransportError(error)) {
                 if (entry.provider !== "antigravity") {
                     authStore.markRateLimited(entry.provider, entry.accountId, 500, (error as Error).message)
+                    advanceAccountCursor(accountState, entries.length, index)
                 }
-                advanceAccountCursor(accountState, entries.length, index)
                 continue
             }
             throw error
@@ -815,9 +832,12 @@ async function* createFlowCompletionStreamWithEntries(request: RoutedRequest, en
                 continue
             }
             if (error instanceof UpstreamError && shouldFallbackOnUpstream(error)) {
-                applyFlowRateLimit(entry, error, request.model)
-                if (flowState && index === startIndex) {
-                    advanceFlowCursor(flowState, entries, startIndex)
+                const shouldAdvance = shouldAdvanceCursorOnError(entry, error)
+                if (shouldAdvance) {
+                    applyFlowRateLimit(entry, error, request.model)
+                    if (flowState && index === startIndex) {
+                        advanceFlowCursor(flowState, entries, startIndex)
+                    }
                 }
 
                 if (
@@ -840,7 +860,10 @@ async function* createFlowCompletionStreamWithEntries(request: RoutedRequest, en
                             } catch (probeError) {
                                 lastError = probeError as Error
                                 if (probeError instanceof UpstreamError && shouldFallbackOnUpstream(probeError)) {
-                                    applyFlowRateLimit(probeEntry, probeError, request.model)
+                                    const shouldAdvanceProbe = shouldAdvanceCursorOnError(probeEntry, probeError)
+                                    if (shouldAdvanceProbe) {
+                                        applyFlowRateLimit(probeEntry, probeError, request.model)
+                                    }
                                 } else if (isTransientTransportError(probeError)) {
                                     if (probeEntry.provider !== "antigravity") {
                                         authStore.markRateLimited(probeEntry.provider, probeEntry.accountId, 500, (probeError as Error).message)
@@ -1032,21 +1055,24 @@ async function* createAccountCompletionStreamWithEntries(request: RoutedRequest,
                 continue
             }
             if (error instanceof UpstreamError && shouldFallbackOnUpstream(error)) {
-                if (entry.provider === "antigravity") {
-                    accountManager.markRateLimitedFromError(entry.accountId, error.status, error.body, error.retryAfter, request.model)
-                    markRouterRateLimited("antigravity", entry.accountId, 60000)
-                } else {
-                    authStore.markRateLimited(entry.provider, entry.accountId, error.status, error.body, error.retryAfter)
-                    markRouterRateLimited(entry.provider, entry.accountId, 60000)
+                const shouldAdvance = shouldAdvanceCursorOnError(entry, error)
+                if (shouldAdvance) {
+                    if (entry.provider === "antigravity") {
+                        accountManager.markRateLimitedFromError(entry.accountId, error.status, error.body, error.retryAfter, request.model)
+                        markRouterRateLimited("antigravity", entry.accountId, 60000)
+                    } else {
+                        authStore.markRateLimited(entry.provider, entry.accountId, error.status, error.body, error.retryAfter)
+                        markRouterRateLimited(entry.provider, entry.accountId, 60000)
+                    }
+                    advanceAccountCursor(accountState, entries.length, index)
                 }
-                advanceAccountCursor(accountState, entries.length, index)
                 continue
             }
             if (isTransientTransportError(error)) {
                 if (entry.provider !== "antigravity") {
                     authStore.markRateLimited(entry.provider, entry.accountId, 500, (error as Error).message)
+                    advanceAccountCursor(accountState, entries.length, index)
                 }
-                advanceAccountCursor(accountState, entries.length, index)
                 continue
             }
             throw error

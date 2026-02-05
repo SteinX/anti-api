@@ -19,23 +19,34 @@
 
 > **Disclaimer**: This project is based on reverse engineering of Antigravity. Future compatibility is not guaranteed. For long-term use, avoid updating Antigravity.
 
-## What's New (v2.4.0)
+## What's New (v2.5.1)
 
-- ✅ **Streaming Optimization** - Improved stream reading to reduce unexpected interruptions
-- ✅ **Docker Support** - Complete Docker deployment with one-click start scripts
-- ✅ **Log Panel** - Real-time log viewer in the dashboard
-- ✅ **UI Layout** - Optimized quota card layout and privacy masking
-- ✅ **One-Click Scripts** - `start.command` (macOS) / `start.bat` (Windows) for native launch
-- ✅ **Docker Scripts** - `dstart.command` / `dstart.bat` for Docker launch
+- **Account bundle export/import** - Backup and restore accounts, routing, settings, usage, and cache from the Settings panel
+- **Routing inheritance** - Active flow can be applied without adding a route prefix
+- **Routing refresh** - Refresh button added to the routing page
+- **Quota stability** - `usage_limit_reached` is treated as quota exhausted for auto-switch
+- **Routing stickiness** - Avoids account drift on transient errors to reduce extra quota usage
+- **Antigravity compatibility** - Unified User-Agent version (1.15.8) to avoid version-too-old blocks
+- **One-command update** - Run `./a --update` or `start.command --update` to update in place and keep data
+
+## 更新说明 (v2.5.1)
+
+- **账号打包导入导出** - 设置页支持一键备份与恢复（账号、路由、偏好、用量、缓存）
+- **路由继承** - 支持直接使用当前 active flow
+- **路由刷新** - routing 页面新增刷新按钮
+- **配额稳定性** - `usage_limit_reached` 统一视为额度耗尽，触发自动切换
+- **路由粘性** - 临时错误不再触发账号漂移，减少额外消耗
+- **Antigravity 兼容** - 统一 User-Agent 版本为 1.15.8，避免版本过旧拦截
+- **一键更新** - 使用 `./a --update` 或 `start.command --update` 直接覆盖更新并保留数据
 
 ## Features
 
-- **🎯 Flow + Account Routing** - Custom flows for non-official models, account chains for official models
-- **🌐 Remote Access** - ngrok/cloudflared/localtunnel with one-click setup
-- **📊 Full Dashboard** - Quota monitoring, routing config, settings panel
-- **🔄 Auto-Rotation** - Seamless account switching on 429 errors
-- **⚡ Dual Format** - OpenAI and Anthropic API compatible
-- **🛠️ Tool Calling** - Function calling for Claude Code and CLI tools
+- **Flow + Account Routing** - Custom flows for non-official models, account chains for official models
+- **Remote Access** - ngrok/cloudflared/localtunnel with one-click setup
+- **Full Dashboard** - Quota monitoring, routing config, settings panel
+- **Auto-Rotation** - Account switching on 429 errors
+- **Dual Format** - OpenAI and Anthropic API compatible
+- **Tool Calling** - Function calling for Claude Code and CLI tools
 
 ## Free Gemini Pro Access
 
@@ -169,7 +180,7 @@ Supported tunnels:
 
 ## Smart Routing System (Beta)
 
-> ⚠️ **Beta Feature**: Routing is experimental. Configuration may change in future versions.
+> **Beta Feature**: Routing is experimental. Configuration may change in future versions.
 
 The routing system is split into two modes:
 
@@ -226,9 +237,9 @@ Expose your local Anti-API to the internet for cross-device access. Useful for:
 
 | Tunnel | Account Required | Stability | Speed |
 |--------|------------------|-----------|-------|
-| **ngrok** | ✅ Yes (free tier) | ⭐⭐⭐ Best | Fast |
-| **cloudflared** | ❌ No | ⭐⭐ Good | Medium |
-| **localtunnel** | ❌ No | ⭐ Fair | Slow |
+| **ngrok** | Yes (free tier) | Best | Fast |
+| **cloudflared** | No | Good | Medium |
+| **localtunnel** | No | Fair | Slow |
 
 ### Setup
 
@@ -296,12 +307,12 @@ Configure application behavior at `http://localhost:8964/settings`:
 
 ## Code Quality & Testing
 
-- ✅ **Unit Tests** - Core logic covered with automated tests
-- ✅ **Formatting Rules** - `.editorconfig` keeps diffs consistent
-- ✅ **Input Validation** - Request validation for security
-- ✅ **Response Time Logging** - Performance monitoring
-- ✅ **Centralized Constants** - No magic numbers
-- ✅ **Comprehensive Docs** - API reference, architecture, troubleshooting
+- **Unit Tests** - Core logic covered with automated tests
+- **Formatting Rules** - `.editorconfig` keeps diffs consistent
+- **Input Validation** - Request validation for security
+- **Response Time Logging** - Performance monitoring
+- **Centralized Constants** - No magic numbers
+- **Comprehensive Docs** - API reference, architecture, troubleshooting
 
 See `docs/` folder for detailed documentation.
 
@@ -319,23 +330,23 @@ MIT
 
 > **免责声明**：本项目基于 Antigravity 逆向开发，未来版本兼容性未知，长久使用请尽可能避免更新Antigravity。
 
-## 更新内容 (v2.4.0)
+## 更新内容 (v2.5.1)
 
-- ✅ **流式优化** - 优化流式读取，减少意外中断
-- ✅ **Docker 支持** - 完善 Docker 部署，提供一键启动脚本
-- ✅ **日志面板** - 面板内实时查看服务器日志
-- ✅ **UI 布局优化** - 配额卡片布局优化，隐私遮罩改进
-- ✅ **一键启动脚本** - `start.command` (macOS) / `start.bat` (Windows) 本地启动
-- ✅ **Docker 脚本** - `dstart.command` / `dstart.bat` Docker 启动
+- **账号打包导入导出** - 设置页支持一键备份与恢复（账号、路由、偏好、用量、缓存）
+- **路由继承** - 支持直接使用当前 active flow
+- **路由刷新** - routing 页面新增刷新按钮
+- **配额稳定性** - `usage_limit_reached` 统一视为额度耗尽，触发自动切换
+- **Antigravity 兼容** - 统一 User-Agent 版本为 1.15.8，避免版本过旧拦截
+- **一键更新** - 使用 `./a --update` 或 `start.command --update` 直接覆盖更新并保留数据
 
 ## 特性
 
-- **🎯 Flow + Account 路由** - 自定义流控制非官方模型，官方模型使用账号链
-- **🌐 远程访问** - ngrok/cloudflared/localtunnel 一键设置
-- **📊 完整面板** - 配额监控、路由配置、设置面板
-- **🔄 自动轮换** - 429 错误时无缝切换账号
-- **⚡ 双格式支持** - OpenAI 和 Anthropic API 兼容
-- **🛠️ 工具调用** - 支持 function calling，兼容 Claude Code
+- **Flow + Account 路由** - 自定义流控制非官方模型，官方模型使用账号链
+- **远程访问** - ngrok/cloudflared/localtunnel 一键设置
+- **完整面板** - 配额监控、路由配置、设置面板
+- **自动轮换** - 429 错误时切换账号
+- **双格式支持** - OpenAI 和 Anthropic API 兼容
+- **工具调用** - 支持 function calling，兼容 Claude Code
 
 ## 开发规范
 
@@ -370,7 +381,7 @@ MIT
 
 ## 智能路由系统 (Beta)
 
-> ⚠️ **测试功能**：路由系统为实验性功能，配置格式可能在未来版本中变更。
+> **测试功能**：路由系统为实验性功能，配置格式可能在未来版本中变更。
 
 路由系统拆分为两种模式：
 
@@ -419,9 +430,9 @@ MIT
 
 | 隧道 | 需要账号 | 稳定性 | 速度 |
 |------|----------|--------|------|
-| **ngrok** | ✅ 是 | ⭐⭐⭐ 最佳 | 快 |
-| **cloudflared** | ❌ 否 | ⭐⭐ 良好 | 中 |
-| **localtunnel** | ❌ 否 | ⭐ 一般 | 慢 |
+| **ngrok** | 是（免费层） | 最佳 | 快 |
+| **cloudflared** | 否 | 良好 | 中 |
+| **localtunnel** | 否 | 一般 | 慢 |
 
 ### 设置方法
 
@@ -482,10 +493,10 @@ MIT
 
 ## 代码质量
 
-- ✅ **单元测试** - 核心逻辑完整测试
-- ✅ **输入验证** - 请求验证保障安全
-- ✅ **响应时间日志** - 性能监控
-- ✅ **常量集中管理** - 无魔法数字
+- **单元测试** - 核心逻辑完整测试
+- **输入验证** - 请求验证保障安全
+- **响应时间日志** - 性能监控
+- **常量集中管理** - 无魔法数字
 
 详细文档见 `docs/` 文件夹。
 
