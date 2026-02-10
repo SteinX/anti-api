@@ -19,25 +19,19 @@
 
 > **Disclaimer**: This project is based on reverse engineering of Antigravity. Future compatibility is not guaranteed. For long-term use, avoid updating Antigravity.
 
-## What's New (v2.5.1)
+## What's New (v2.6.0)
 
-- **Account bundle export/import** - Backup and restore accounts, routing, settings, usage, and cache from the Settings panel
-- **Routing inheritance** - Active flow can be applied without adding a route prefix
-- **Routing refresh** - Refresh button added to the routing page
-- **Quota stability** - `usage_limit_reached` is treated as quota exhausted for auto-switch
-- **Routing stickiness** - Avoids account drift on transient errors to reduce extra quota usage
-- **Antigravity compatibility** - Unified User-Agent version (1.15.8) to avoid version-too-old blocks
-- **One-command update** - Run `./a --update` or `start.command --update` to update in place and keep data
+- **Antigravity model update** - Added `claude-opus-4-6-thinking` to model list, routing, and quota grouping
+- **Codex model update** - Added Codex 5.3 series (`gpt-5.3`, `gpt-5.3-codex`) in the Codex routing model list
+- **Updater hardening** - Fixed macOS JSON parsing in update flow, improved Windows failure handling, and added release SHA256 verification
+- **Safer update behavior** - Update runs after local process stop and no longer uses destructive `--delete` file sync
 
-## 更新说明 (v2.5.1)
+## 更新说明 (v2.6.0)
 
-- **账号打包导入导出** - 设置页支持一键备份与恢复（账号、路由、偏好、用量、缓存）
-- **路由继承** - 支持直接使用当前 active flow
-- **路由刷新** - routing 页面新增刷新按钮
-- **配额稳定性** - `usage_limit_reached` 统一视为额度耗尽，触发自动切换
-- **路由粘性** - 临时错误不再触发账号漂移，减少额外消耗
-- **Antigravity 兼容** - 统一 User-Agent 版本为 1.15.8，避免版本过旧拦截
-- **一键更新** - 使用 `./a --update` 或 `start.command --update` 直接覆盖更新并保留数据
+- **Antigravity 模型更新** - 新增 `claude-opus-4-6-thinking`，并同步到模型列表、路由与配额分组
+- **Codex 模型更新** - 在 Codex 路由模型列表新增 5.3 系列（`gpt-5.3`、`gpt-5.3-codex`）
+- **更新流程加固** - 修复 macOS 更新 JSON 解析问题，增强 Windows 失败处理，并增加 release SHA256 校验
+- **更新行为更安全** - 先停本地进程再更新，且不再使用带删除风险的 `--delete` 同步
 
 ## Features
 

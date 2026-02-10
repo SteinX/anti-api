@@ -55,22 +55,39 @@ do_update() {
     API_URL="https://api.github.com/repos/ink1ing/anti-api/releases/latest"
     RELEASE_JSON="$(curl -fsSL "$API_URL")" || return 1
 
-    read -r ASSET_URL TAG_NAME <<EOF
-$(python3 - <<'PY'
-import json, sys
-data = json.load(sys.stdin)
+    ASSET_META="$(RELEASE_JSON="$RELEASE_JSON" python3 - <<'PY'
+import json, os, sys
+raw = os.environ.get("RELEASE_JSON", "")
+try:
+    data = json.loads(raw)
+except Exception:
+    sys.exit(1)
 assets = data.get("assets") or []
-url = ""
-for asset in assets:
-    name = asset.get("name") or ""
+asset = None
+for item in assets:
+    name = item.get("name") or ""
     if name.startswith("anti-api-v") and name.endswith(".zip"):
-        url = asset.get("browser_download_url") or ""
+        asset = item
         break
+if not asset:
+    sys.exit(2)
+url = asset.get("browser_download_url") or ""
 tag = data.get("tag_name") or ""
-print(f"{url} {tag}".strip())
+digest = asset.get("digest") or ""
+print(url)
+print(tag)
+print(digest)
 PY
-<<<"$RELEASE_JSON")
-EOF
+)"
+    parse_code=$?
+    if [ "$parse_code" -ne 0 ]; then
+        echo "[错误] release 信息解析失败"
+        return 1
+    fi
+
+    ASSET_URL="$(printf "%s\n" "$ASSET_META" | sed -n '1p')"
+    TAG_NAME="$(printf "%s\n" "$ASSET_META" | sed -n '2p')"
+    ASSET_DIGEST="$(printf "%s\n" "$ASSET_META" | sed -n '3p')"
 
     if [ -z "$ASSET_URL" ]; then
         echo "[错误] 找不到 release 包"
@@ -85,6 +102,21 @@ EOF
         return 1
     fi
 
+    if [ -n "$ASSET_DIGEST" ] && echo "$ASSET_DIGEST" | grep -q "^sha256:"; then
+        expected="${ASSET_DIGEST#sha256:}"
+        actual=""
+        if command -v shasum >/dev/null 2>&1; then
+            actual="$(shasum -a 256 "$ZIP_FILE" | awk '{print $1}')"
+        elif command -v openssl >/dev/null 2>&1; then
+            actual="$(openssl dgst -sha256 "$ZIP_FILE" | awk '{print $NF}')"
+        fi
+        if [ -n "$actual" ] && [ "$actual" != "$expected" ]; then
+            echo "[错误] 更新包校验失败（SHA256 不匹配）"
+            rm -rf "$TMP_DIR"
+            return 1
+        fi
+    fi
+
     unzip -q "$ZIP_FILE" -d "$TMP_DIR" || { rm -rf "$TMP_DIR"; return 1; }
     TOP_DIR="$(find "$TMP_DIR" -maxdepth 1 -type d -name "anti-api-v*" | head -n 1)"
     if [ -z "$TOP_DIR" ]; then
@@ -94,7 +126,7 @@ EOF
     fi
 
     if command -v rsync >/dev/null 2>&1; then
-        rsync -a --delete \
+        rsync -a \
             --exclude ".git/" \
             --exclude "data/" \
             --exclude "node_modules/" \
@@ -116,13 +148,6 @@ EOF
     echo "已更新到最新版本 ${TAG_NAME:-}"
     return 0
 }
-
-if [ "$UPDATE_MODE" = "true" ]; then
-    do_update || exit 1
-    if [ "$UPDATE_ONLY" = "true" ]; then
-        exit 0
-    fi
-fi
 
 AUTO_RESTART="false"
 if [ -f "$SETTINGS_FILE" ] && command -v python3 >/dev/null 2>&1; then
@@ -183,6 +208,13 @@ if [ -f "$RUST_PID_FILE" ]; then
 fi
 safe_kill_by_port "$PORT" "anti-api|src/main.ts"
 safe_kill_by_port "$RUST_PROXY_PORT" "anti-proxy|rust-proxy"
+
+if [ "$UPDATE_MODE" = "true" ]; then
+    do_update || exit 1
+    if [ "$UPDATE_ONLY" = "true" ]; then
+        exit 0
+    fi
+fi
 
 # 加载 bun 路径（如果已安装）
 export BUN_INSTALL="$HOME/.bun"
