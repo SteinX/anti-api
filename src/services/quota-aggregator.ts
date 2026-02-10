@@ -306,6 +306,7 @@ function buildAntigravityBars(models: Record<string, ModelInfo>): AccountBar[] {
         "claude-sonnet-4-5",
         "claude-sonnet-4-5-thinking",
         "claude-opus-4-5-thinking",
+        "claude-opus-4-6-thinking",
         "gpt-oss-120b",
     ]
     const gproIds = ["gemini-3-pro-low", "gemini-3-pro-high"]

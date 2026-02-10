@@ -7,11 +7,17 @@ export interface ProviderModelOption {
 }
 
 const CODEX_HIDDEN_MODELS = new Set([
+    "gpt-5.3-max-high",
+    "gpt-5.3-max",
     "gpt-5.2-max-high",
     "gpt-5.2-max",
 ])
 
 const CODEX_MODELS: ProviderModelOption[] = [
+    { id: "gpt-5.3-max-high", label: "Codex - 5.3 Max (High)" },
+    { id: "gpt-5.3-max", label: "Codex - 5.3 Max" },
+    { id: "gpt-5.3", label: "Codex - 5.3" },
+    { id: "gpt-5.3-codex", label: "Codex - 5.3 Codex" },
     { id: "gpt-5.2-max-high", label: "Codex - 5.2 Max (High)" },
     { id: "gpt-5.2-max", label: "Codex - 5.2 Max" },
     { id: "gpt-5.2", label: "Codex - 5.2" },

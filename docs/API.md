@@ -201,6 +201,7 @@ curl -X POST http://localhost:8964/v1/chat/completions \
 | `claude-sonnet-4-5` | Antigravity | Fast, balanced |
 | `claude-sonnet-4-5-thinking` | Antigravity | Extended thinking |
 | `claude-opus-4-5-thinking` | Antigravity | Most capable |
+| `claude-opus-4-6-thinking` | Antigravity | Most capable (new generation) |
 | `gemini-3-flash` | Antigravity | Fast responses |
 | `gemini-3-pro-high` | Antigravity | High quality |
 | `fast` | Routing | Auto-select fastest |

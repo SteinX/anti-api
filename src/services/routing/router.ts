@@ -55,6 +55,7 @@ function normalizeOfficialModelId(model: string): string {
         "claude-sonnet-4.5": "claude-sonnet-4-5",
         "claude-sonnet-4.5-thinking": "claude-sonnet-4-5-thinking",
         "claude-opus-4.5-thinking": "claude-opus-4-5-thinking",
+        "claude-opus-4.6-thinking": "claude-opus-4-6-thinking",
     }
     return map[normalized] || normalized
 }

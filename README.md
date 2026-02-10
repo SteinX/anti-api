@@ -266,6 +266,7 @@ Configure application behavior at `http://localhost:8964/settings`:
 | `claude-sonnet-4-5` | Fast, balanced |
 | `claude-sonnet-4-5-thinking` | Extended reasoning |
 | `claude-opus-4-5-thinking` | Most capable |
+| `claude-opus-4-6-thinking` | Most capable (new generation) |
 | `gemini-3-flash` | Fastest responses |
 | `gemini-3-pro-high` | High quality |
 | `gemini-3-pro-low` | Cost-effective |
@@ -284,6 +285,10 @@ Configure application behavior at `http://localhost:8964/settings`:
 ### ChatGPT Codex
 | Model ID | Description |
 |----------|-------------|
+| `gpt-5.3-max-high` | 5.3 Max (High) |
+| `gpt-5.3-max` | 5.3 Max |
+| `gpt-5.3` | 5.3 |
+| `gpt-5.3-codex` | 5.3 Codex |
 | `gpt-5.2-max-high` | 5.2 Max (High) |
 | `gpt-5.2-max` | 5.2 Max |
 | `gpt-5.2` | 5.2 |
@@ -459,6 +464,7 @@ MIT
 | `claude-sonnet-4-5` | 快速均衡 |
 | `claude-sonnet-4-5-thinking` | 扩展推理 |
 | `claude-opus-4-5-thinking` | 最强能力 |
+| `claude-opus-4-6-thinking` | 最强能力（新一代） |
 | `gemini-3-flash` | 最快响应 |
 | `gemini-3-pro-high` | 高质量 |
 
@@ -474,6 +480,10 @@ MIT
 ### ChatGPT Codex
 | 模型 ID | 说明 |
 |---------|------|
+| `gpt-5.3-max-high` | 5.3 Max (High) |
+| `gpt-5.3-max` | 5.3 Max |
+| `gpt-5.3` | 5.3 |
+| `gpt-5.3-codex` | 5.3 Codex |
 | `gpt-5.2-max-high` | 5.2 Max (High) |
 | `gpt-5.2-max` | 5.2 Max |
 | `gpt-5.2` | 5.2 |
