@@ -526,7 +526,7 @@ function updateCliSessionOutput(session: CodexCliLoginSession, chunk: string): v
 
 export async function startCodexCliLogin(): Promise<{
     sessionId: string
-    status: "pending" | "error"
+    status: "pending" | "success" | "error"
     message?: string
     verificationUri?: string
     userCode?: string
@@ -664,7 +664,41 @@ export async function getCodexCliLoginStatus(sessionId: string): Promise<{
     }
 }
 
-function openBrowser(url: string): void {
+export function cancelCodexCliLoginSession(sessionId?: string): boolean {
+    if (sessionId) {
+        const session = codexCliSessions.get(sessionId)
+        if (!session || session.status !== "pending") return false
+        try {
+            session.process.kill()
+        } catch {}
+        session.status = "error"
+        session.message = "Cancelled by user"
+        return true
+    }
+
+    let cancelled = false
+    for (const session of codexCliSessions.values()) {
+        if (session.status !== "pending") continue
+        try {
+            session.process.kill()
+        } catch {}
+        session.status = "error"
+        session.message = "Cancelled by user"
+        cancelled = true
+    }
+    return cancelled
+}
+
+function printManualAuthUrl(url: string): void {
+    const line = `[anti-api] Codex login URL: ${url}`
+    try {
+        process.stdout.write(`${line}\n`)
+    } catch {
+        console.log(line)
+    }
+}
+
+function openBrowser(url: string): boolean {
     const platform = process.platform
     let cmd = "xdg-open"
     let args = [url]
@@ -674,7 +708,12 @@ function openBrowser(url: string): void {
         cmd = "cmd"
         args = ["/c", "start", url]
     }
-    Bun.spawn([cmd, ...args], { stdout: "ignore", stderr: "ignore" })
+    try {
+        Bun.spawn([cmd, ...args], { stdout: "ignore", stderr: "ignore" })
+        return true
+    } catch {
+        return false
+    }
 }
 
 function buildCodexAuthorizeUrl(port: number): {
@@ -685,7 +724,8 @@ function buildCodexAuthorizeUrl(port: number): {
     codeVerifier?: string
 } {
     const state = crypto.randomUUID()
-    const redirectUri = `http://localhost:${port}${CODEX_OAUTH_CONFIG.callbackPath}`
+    const configuredRedirectUri = process.env.CODEX_OAUTH_REDIRECT_URL?.trim()
+    const redirectUri = configuredRedirectUri || `http://localhost:${port}${CODEX_OAUTH_CONFIG.callbackPath}`
     const params = new URLSearchParams({
         client_id: CODEX_OAUTH_CONFIG.clientId,
         redirect_uri: redirectUri,
@@ -704,9 +744,12 @@ function buildCodexAuthorizeUrl(port: number): {
     }
 
     const authUrl = `${CODEX_OAUTH_CONFIG.authorizeUrl}?${params.toString()}`
-    const fallbackRedirectUri = `http://127.0.0.1:${port}${CODEX_OAUTH_CONFIG.callbackPath}`
-    params.set("redirect_uri", fallbackRedirectUri)
-    const fallbackUrl = `${CODEX_OAUTH_CONFIG.authorizeUrl}?${params.toString()}`
+    let fallbackUrl: string | undefined
+    if (!configuredRedirectUri) {
+        const fallbackRedirectUri = `http://127.0.0.1:${port}${CODEX_OAUTH_CONFIG.callbackPath}`
+        params.set("redirect_uri", fallbackRedirectUri)
+        fallbackUrl = `${CODEX_OAUTH_CONFIG.authorizeUrl}?${params.toString()}`
+    }
 
     return { state, authUrl, fallbackUrl, redirectUri, codeVerifier }
 }
@@ -884,12 +927,19 @@ export async function importCodexAuthSources(): Promise<{ accounts: ProviderAcco
     return { accounts: Array.from(accounts.values()), sources }
 }
 
-export function startCodexOAuthSession(): { state: string; authUrl: string; fallbackUrl?: string; expiresAt: number } {
+export function startCodexOAuthSession(): {
+    state: string
+    authUrl: string
+    fallbackUrl?: string
+    redirectUri: string
+    expiresAt: number
+} {
     if (activeSession && Date.now() < activeSession.expiresAt) {
         return {
             state: activeSession.state,
             authUrl: activeSession.authUrl,
             fallbackUrl: activeSession.fallbackUrl,
+            redirectUri: activeSession.redirectUri,
             expiresAt: activeSession.expiresAt,
         }
     }
@@ -908,7 +958,7 @@ export function startCodexOAuthSession(): { state: string; authUrl: string; fall
         fallbackUrl,
     }
 
-    return { state, authUrl, fallbackUrl, expiresAt: activeSession.expiresAt }
+    return { state, authUrl, fallbackUrl, redirectUri, expiresAt: activeSession.expiresAt }
 }
 
 export async function pollCodexOAuthSession(state: string): Promise<{
@@ -967,10 +1017,17 @@ export async function pollCodexOAuthSession(state: string): Promise<{
     return { status: "success", account }
 }
 
+export function cancelCodexOAuthSession(state?: string): boolean {
+    if (!activeSession) return false
+    if (state && activeSession.state !== state) return false
+    activeSession = null
+    return true
+}
+
 export async function startCodexOAuthLogin(): Promise<ProviderAccount> {
     const state = crypto.randomUUID()
     const { server, port, waitForCallback } = await startOAuthCallbackServer(CODEX_OAUTH_CONFIG.callbackPort)
-    const redirectUri = `http://localhost:${port}${CODEX_OAUTH_CONFIG.callbackPath}`
+    const redirectUri = process.env.CODEX_OAUTH_REDIRECT_URL?.trim() || `http://localhost:${port}${CODEX_OAUTH_CONFIG.callbackPath}`
 
     const params = new URLSearchParams({
         client_id: CODEX_OAUTH_CONFIG.clientId,
@@ -991,8 +1048,11 @@ export async function startCodexOAuthLogin(): Promise<ProviderAccount> {
 
     const authUrl = `${CODEX_OAUTH_CONFIG.authorizeUrl}?${params.toString()}`
     consola.info("Codex OAuth callback server started")
+    printManualAuthUrl(authUrl)
 
-    openBrowser(authUrl)
+    if (!openBrowser(authUrl)) {
+        consola.warn("Failed to open browser automatically. Open the Codex login URL manually.")
+    }
 
     const result = await waitForCallback()
     server.stop()
@@ -1306,6 +1366,7 @@ function startCodexCallbackServer(
 ): any {
     return Bun.serve({
         port,
+        hostname: "0.0.0.0",
         fetch(req) {
             const url = new URL(req.url)
             if (url.pathname === CODEX_OAUTH_CONFIG.callbackPath) {

@@ -560,7 +560,8 @@
                         class="flex items-center justify-between p-4 rounded-xl border border-gray-800 hover:border-gray-700 transition-colors cursor-pointer">
                         <div>
                             <div class="text-gray-200 font-medium">Auto Refresh Quota</div>
-                            <div class="text-gray-500 text-xs mt-0.5">Automatically refresh quota and usage every 10 minutes</div>
+                            <div class="text-gray-500 text-xs mt-0.5">Automatically refresh quota and usage every 10
+                                minutes</div>
                         </div>
                         <input type="checkbox" id="setting-auto-refresh" class="toggle-switch" checked>
                     </label>
@@ -612,7 +613,8 @@
                         class="flex items-center justify-between p-4 rounded-xl border border-gray-800 hover:border-gray-700 transition-colors cursor-pointer">
                         <div>
                             <div class="text-gray-200 font-medium">Optimize Quota Sorting</div>
-                            <div class="text-gray-500 text-xs mt-0.5">Sort cards by remaining quota within each provider</div>
+                            <div class="text-gray-500 text-xs mt-0.5">Sort cards by remaining quota within each provider
+                            </div>
                         </div>
                         <input type="checkbox" id="setting-optimize-quota-sort" class="toggle-switch">
                     </label>
@@ -668,7 +670,7 @@
         <div class="bg-[#111111] border border-[#2f253f] rounded-2xl w-full max-w-md p-6 text-gray-200">
             <div class="flex items-center justify-between mb-4">
                 <h2 class="text-lg font-bold">Add Account</h2>
-                <button onclick="closeAddAccountModal()" class="text-gray-500 hover:text-gray-300">✕</button>
+                <button onclick="closeAddAccountModal(true)" class="text-gray-500 hover:text-gray-300">✕</button>
             </div>
             <div class="space-y-2">
                 <button class="w-full text-left px-4 py-3 rounded-lg border border-[#2f253f] hover:border-gray-500"
@@ -685,6 +687,11 @@
                 </button>
             </div>
             <div id="add-account-status" class="mt-4 text-xs text-gray-400 hidden"></div>
+            <div id="antigravity-device" class="mt-4 hidden">
+                <div class="text-sm text-gray-400 mb-2">Complete login in your browser:</div>
+                <a id="antigravity-link" href="#" target="_blank"
+                    class="inline-block text-blue-400 hover:text-blue-300 text-xs">Open Antigravity login page</a>
+            </div>
             <div id="codex-device" class="mt-4 hidden">
                 <div class="text-sm text-gray-400 mb-2">Open the browser and enter this code:</div>
                 <div class="flex items-center gap-2">
@@ -697,6 +704,9 @@
                         Copy
                     </button>
                 </div>
+                <a id="codex-link" href="#" target="_blank"
+                    class="inline-block mt-3 text-blue-400 hover:text-blue-300 text-xs hidden">Open verification
+                    page</a>
             </div>
             <div id="copilot-device" class="mt-4 hidden">
                 <div class="text-sm text-gray-400 mb-2">Open the browser and enter this code:</div>
@@ -713,15 +723,29 @@
                 <a id="copilot-link" href="#" target="_blank"
                     class="inline-block mt-3 text-blue-400 hover:text-blue-300 text-xs">Open verification page</a>
             </div>
+            <div id="add-account-actions" class="mt-4 hidden">
+                <button onclick="cancelActiveAuthFlow(true)"
+                    class="px-3 py-2 rounded-lg border border-[#2f253f] text-xs hover:border-gray-500">
+                    Cancel verification
+                </button>
+            </div>
         </div>
     </div>
 
     <script>
         const API_BASE = 'http://localhost:8964';
         const CODEX_SESSION_KEY = 'anti-api-codex-session';
+        const ANTIGRAVITY_SESSION_KEY = 'anti-api-antigravity-session';
         let loadingDismissed = false;
         let codexPopup = null;
         let codexPopupUrl = null;
+        let antigravityPopup = null;
+        let antigravityPopupUrl = null;
+        let copilotPollTimer = null;
+        let codexPollTimer = null;
+        let codexOAuthPollTimer = null;
+        let antigravityOAuthPollTimer = null;
+        let activeAuthFlow = null;
 
         // Tab state
         let currentTab = 'quota';
@@ -1735,15 +1759,88 @@
             setTimeout(() => loading.remove(), 400);
         }
 
-        function openAddAccountModal() {
-            document.getElementById('add-account-modal').classList.remove('hidden');
-            document.getElementById('add-account-modal').classList.add('flex');
-            document.getElementById('add-account-status').classList.add('hidden');
+        function clearAuthPollingTimers() {
+            if (copilotPollTimer) {
+                clearTimeout(copilotPollTimer);
+                copilotPollTimer = null;
+            }
+            if (codexPollTimer) {
+                clearTimeout(codexPollTimer);
+                codexPollTimer = null;
+            }
+            if (codexOAuthPollTimer) {
+                clearTimeout(codexOAuthPollTimer);
+                codexOAuthPollTimer = null;
+            }
+            if (antigravityOAuthPollTimer) {
+                clearTimeout(antigravityOAuthPollTimer);
+                antigravityOAuthPollTimer = null;
+            }
+        }
+
+        function hideAuthFlowPanels() {
+            document.getElementById('antigravity-device').classList.add('hidden');
             document.getElementById('codex-device').classList.add('hidden');
             document.getElementById('copilot-device').classList.add('hidden');
         }
 
-        function closeAddAccountModal() {
+        function setAuthActionVisible(visible) {
+            const actions = document.getElementById('add-account-actions');
+            if (!actions) return;
+            actions.classList.toggle('hidden', !visible);
+        }
+
+        async function cancelActiveAuthFlow(showStatus = false) {
+            clearAuthPollingTimers();
+            const flow = activeAuthFlow;
+            activeAuthFlow = null;
+            setAuthActionVisible(false);
+
+            if (!flow) {
+                if (showStatus) {
+                    setAddAccountStatus('Verification cancelled');
+                }
+                return;
+            }
+
+            if (flow.provider === 'codex') {
+                clearCodexSession();
+                if (flow.oauthState) {
+                    try {
+                        await fetch(`${API_BASE}/auth/codex/oauth/cancel?state=${encodeURIComponent(flow.oauthState)}`, { method: 'POST' });
+                    } catch { }
+                }
+                if (flow.sessionId) {
+                    try {
+                        await fetch(`${API_BASE}/auth/codex/cancel?session_id=${encodeURIComponent(flow.sessionId)}`, { method: 'POST' });
+                    } catch { }
+                }
+            }
+
+            if (flow.provider === 'antigravity' && flow.oauthState) {
+                clearAntigravitySession();
+                try {
+                    await fetch(`${API_BASE}/auth/antigravity/oauth/cancel?state=${encodeURIComponent(flow.oauthState)}`, { method: 'POST' });
+                } catch { }
+            }
+
+            if (showStatus) {
+                setAddAccountStatus('Verification cancelled');
+            }
+        }
+
+        function openAddAccountModal() {
+            document.getElementById('add-account-modal').classList.remove('hidden');
+            document.getElementById('add-account-modal').classList.add('flex');
+            document.getElementById('add-account-status').classList.add('hidden');
+            hideAuthFlowPanels();
+            setAuthActionVisible(false);
+        }
+
+        async function closeAddAccountModal(cancelFlow = false) {
+            if (cancelFlow) {
+                await cancelActiveAuthFlow(true);
+            }
             document.getElementById('add-account-modal').classList.add('hidden');
             document.getElementById('add-account-modal').classList.remove('flex');
         }
@@ -1754,10 +1851,14 @@
             status.classList.remove('hidden');
         }
 
-        function saveCodexSession(sessionId, data = {}) {
-            if (!sessionId) return;
+        function saveCodexSession(data = {}) {
+            if (!data.sessionId && !data.oauthState) return;
             const payload = {
-                sessionId,
+                mode: data.mode || (data.oauthState ? 'oauth' : 'cli'),
+                sessionId: data.sessionId || null,
+                oauthState: data.oauthState || null,
+                auth_url: data.auth_url || null,
+                fallback_url: data.fallback_url || null,
                 user_code: data.user_code || null,
                 verification_uri: data.verification_uri || null,
                 updatedAt: Date.now(),
@@ -1782,18 +1883,67 @@
             }
         }
 
+        function saveAntigravitySession(data = {}) {
+            if (!data.oauthState) return;
+            const payload = {
+                oauthState: data.oauthState,
+                auth_url: data.auth_url || null,
+                updatedAt: Date.now(),
+            };
+            try {
+                localStorage.setItem(ANTIGRAVITY_SESSION_KEY, JSON.stringify(payload));
+            } catch { }
+        }
+
+        function clearAntigravitySession() {
+            try {
+                localStorage.removeItem(ANTIGRAVITY_SESSION_KEY);
+            } catch { }
+        }
+
+        function loadAntigravitySession() {
+            try {
+                const raw = localStorage.getItem(ANTIGRAVITY_SESSION_KEY);
+                return raw ? JSON.parse(raw) : null;
+            } catch {
+                return null;
+            }
+        }
+
         async function resumeCodexSession() {
             const stored = loadCodexSession();
-            if (!stored || !stored.sessionId) return;
+            if (!stored) return;
+            if (!stored.sessionId && !stored.oauthState) return;
             openAddAccountModal();
             setAddAccountStatus('Resuming Codex authentication...');
-            if (stored.user_code || stored.verification_uri) {
+            if (stored.mode === 'oauth' && stored.oauthState) {
+                showCodexOAuthFlow(stored);
+                await pollCodexOAuthStatus(stored.oauthState);
+                return;
+            }
+            if (stored.sessionId && (stored.user_code || stored.verification_uri)) {
                 showCodexDeviceFlow(stored);
             }
-            await pollCodexStatus(stored.sessionId);
+            if (stored.sessionId) {
+                await pollCodexStatus(stored.sessionId);
+            }
+        }
+
+        async function resumeAntigravitySession() {
+            const stored = loadAntigravitySession();
+            if (!stored || !stored.oauthState) return;
+            openAddAccountModal();
+            setAddAccountStatus('Resuming Antigravity authentication...');
+            showAntigravityOAuthFlow(stored);
+            activeAuthFlow = { provider: 'antigravity', oauthState: stored.oauthState };
+            setAuthActionVisible(true);
+            await pollAntigravityOAuthStatus(stored.oauthState);
         }
 
         async function startProviderLogin(provider) {
+            await cancelActiveAuthFlow(false);
+            hideAuthFlowPanels();
+            setAuthActionVisible(false);
             setAddAccountStatus('Starting authentication...');
 
             try {
@@ -1802,7 +1952,11 @@
                     codexPopup = window.open('about:blank', '_blank');
                     codexPopupUrl = null;
                 }
-                if (provider === 'copilot' || provider === 'codex') {
+                if (provider === 'antigravity') {
+                    antigravityPopup = window.open('about:blank', '_blank');
+                    antigravityPopupUrl = null;
+                }
+                if (provider === 'copilot' || provider === 'codex' || provider === 'antigravity') {
                     payload.force = true;
                 }
                 const response = await fetch(`${API_BASE}/auth/login`, {
@@ -1820,18 +1974,44 @@
                 if (provider === 'copilot') {
                     if (data.status === 'success' && data.source === 'import') {
                         setAddAccountStatus(`Imported Copilot: ${data.login || 'Copilot'}`);
-                        closeAddAccountModal();
+                        await closeAddAccountModal(false);
                         await checkAuthStatus();
                         refreshAll(true);
                         return;
                     }
                     showCopilotDeviceFlow(data);
+                    activeAuthFlow = { provider: 'copilot', deviceCode: data.device_code };
+                    setAuthActionVisible(true);
+                    return;
+                }
+
+                if (provider === 'antigravity' && data.status === 'pending') {
+                    saveAntigravitySession({ oauthState: data.oauth_state, auth_url: data.auth_url });
+                    showAntigravityOAuthFlow(data);
+                    activeAuthFlow = { provider: 'antigravity', oauthState: data.oauth_state };
+                    setAuthActionVisible(true);
+                    pollAntigravityOAuthStatus(data.oauth_state);
                     return;
                 }
 
                 if (provider === 'codex' && data.status === 'pending') {
-                    saveCodexSession(data.session_id, data);
+                    if (data.oauth_state) {
+                        saveCodexSession({
+                            mode: 'oauth',
+                            oauthState: data.oauth_state,
+                            auth_url: data.auth_url,
+                            fallback_url: data.fallback_url
+                        });
+                        showCodexOAuthFlow(data);
+                        activeAuthFlow = { provider: 'codex', oauthState: data.oauth_state };
+                        setAuthActionVisible(true);
+                        pollCodexOAuthStatus(data.oauth_state);
+                        return;
+                    }
+                    saveCodexSession({ mode: 'cli', sessionId: data.session_id, ...data });
                     showCodexDeviceFlow(data);
+                    activeAuthFlow = { provider: 'codex', sessionId: data.session_id };
+                    setAuthActionVisible(true);
                     return;
                 }
 
@@ -1842,10 +2022,10 @@
                         const first = (data.accounts && data.accounts[0]) || {};
                         setAddAccountStatus(`Imported Codex: ${first.email || first.id || 'Codex'}`);
                     }
-                    closeAddAccountModal();
+                    await closeAddAccountModal(false);
                 } else {
                     setAddAccountStatus(`Connected: ${data.email || data.id || provider}`);
-                    closeAddAccountModal();
+                    await closeAddAccountModal(false);
                 }
                 await checkAuthStatus();
                 refreshAll(true);
@@ -1868,11 +2048,27 @@
             pollCopilotStatus(data.device_code, data.interval || 5);
         }
 
+        function showAntigravityOAuthFlow(data) {
+            const device = document.getElementById('antigravity-device');
+            const linkEl = document.getElementById('antigravity-link');
+            const url = data.auth_url;
+            device.classList.remove('hidden');
+            if (url && linkEl) {
+                linkEl.href = url;
+                openAntigravityVerification(url);
+            }
+            setAddAccountStatus('Open browser to complete Antigravity OAuth authorization...');
+        }
+
         function showCodexDeviceFlow(data) {
             const device = document.getElementById('codex-device');
             const codeEl = document.getElementById('codex-code');
+            const linkEl = document.getElementById('codex-link');
             device.classList.remove('hidden');
             codeEl.textContent = data.user_code || '----';
+            if (linkEl) {
+                linkEl.classList.add('hidden');
+            }
             if (data.verification_uri) {
                 openCodexVerification(data.verification_uri);
             }
@@ -1880,22 +2076,44 @@
             pollCodexStatus(data.session_id);
         }
 
+        function showCodexOAuthFlow(data) {
+            const device = document.getElementById('codex-device');
+            const codeEl = document.getElementById('codex-code');
+            device.classList.remove('hidden');
+            codeEl.textContent = 'OPEN';
+            const url = data.auth_url || data.verification_uri || data.fallback_url;
+            if (url) {
+                const linkEl = document.getElementById('codex-link');
+                if (linkEl) {
+                    linkEl.href = url;
+                    linkEl.classList.remove('hidden');
+                }
+                openCodexVerification(url);
+            }
+            setAddAccountStatus('Open browser to complete Codex OAuth authorization...');
+        }
+
         async function pollCopilotStatus(deviceCode, intervalSeconds) {
             if (!deviceCode) return;
+            if (!activeAuthFlow || activeAuthFlow.provider !== 'copilot') return;
             const status = await fetch(`${API_BASE}/auth/copilot/status?device_code=${deviceCode}`);
             const data = await status.json();
             if (data.status === 'success') {
                 setAddAccountStatus(`Connected: ${data.account?.login || 'Copilot'}`);
-                closeAddAccountModal();
+                activeAuthFlow = null;
+                setAuthActionVisible(false);
+                await closeAddAccountModal(false);
                 await checkAuthStatus();
                 refreshAll(true);
                 return;
             }
             if (data.status === 'error') {
                 setAddAccountStatus(data.message || 'Copilot authentication failed');
+                activeAuthFlow = null;
+                setAuthActionVisible(false);
                 return;
             }
-            setTimeout(() => pollCopilotStatus(deviceCode, intervalSeconds), intervalSeconds * 1000);
+            copilotPollTimer = setTimeout(() => pollCopilotStatus(deviceCode, intervalSeconds), intervalSeconds * 1000);
         }
 
         function copyCopilotCode() {
@@ -1906,6 +2124,7 @@
 
         async function pollCodexStatus(sessionId) {
             if (!sessionId) return;
+            if (!activeAuthFlow || activeAuthFlow.provider !== 'codex' || activeAuthFlow.sessionId !== sessionId) return;
             const status = await fetch(`${API_BASE}/auth/codex/status?session_id=${sessionId}`);
             const data = await status.json();
             if (data.status === 'success') {
@@ -1915,7 +2134,9 @@
                     const first = (data.accounts && data.accounts[0]) || {};
                     setAddAccountStatus(`Connected: ${first.email || first.id || 'Codex'}`);
                 }
-                closeAddAccountModal();
+                activeAuthFlow = null;
+                setAuthActionVisible(false);
+                await closeAddAccountModal(false);
                 await checkAuthStatus();
                 refreshAll(true);
                 clearCodexSession();
@@ -1924,14 +2145,66 @@
             if (data.status === 'error') {
                 setAddAccountStatus(data.message || 'Codex authentication failed');
                 clearCodexSession();
+                activeAuthFlow = null;
+                setAuthActionVisible(false);
                 return;
             }
             if (data.user_code && data.verification_uri) {
                 document.getElementById('codex-code').textContent = data.user_code;
                 openCodexVerification(data.verification_uri);
-                saveCodexSession(sessionId, data);
+                saveCodexSession({ mode: 'cli', sessionId, ...data });
             }
-            setTimeout(() => pollCodexStatus(sessionId), 2000);
+            codexPollTimer = setTimeout(() => pollCodexStatus(sessionId), 2000);
+        }
+
+        async function pollCodexOAuthStatus(oauthState) {
+            if (!oauthState) return;
+            if (!activeAuthFlow || activeAuthFlow.provider !== 'codex' || activeAuthFlow.oauthState !== oauthState) return;
+            const status = await fetch(`${API_BASE}/auth/codex/oauth/status?state=${encodeURIComponent(oauthState)}`);
+            const data = await status.json();
+            if (data.status === 'success') {
+                setAddAccountStatus(`Connected: ${data.account?.email || data.account?.id || 'Codex'}`);
+                activeAuthFlow = null;
+                setAuthActionVisible(false);
+                await closeAddAccountModal(false);
+                await checkAuthStatus();
+                refreshAll(true);
+                clearCodexSession();
+                return;
+            }
+            if (data.status === 'error') {
+                setAddAccountStatus(data.message || 'Codex authentication failed');
+                clearCodexSession();
+                activeAuthFlow = null;
+                setAuthActionVisible(false);
+                return;
+            }
+            codexOAuthPollTimer = setTimeout(() => pollCodexOAuthStatus(oauthState), 2000);
+        }
+
+        async function pollAntigravityOAuthStatus(oauthState) {
+            if (!oauthState) return;
+            if (!activeAuthFlow || activeAuthFlow.provider !== 'antigravity' || activeAuthFlow.oauthState !== oauthState) return;
+            const status = await fetch(`${API_BASE}/auth/antigravity/oauth/status?state=${encodeURIComponent(oauthState)}`);
+            const data = await status.json();
+            if (data.status === 'success') {
+                setAddAccountStatus(`Connected: ${data.email || 'Antigravity'}`);
+                clearAntigravitySession();
+                activeAuthFlow = null;
+                setAuthActionVisible(false);
+                await closeAddAccountModal(false);
+                await checkAuthStatus();
+                refreshAll(true);
+                return;
+            }
+            if (data.status === 'error') {
+                setAddAccountStatus(data.message || 'Antigravity authentication failed');
+                clearAntigravitySession();
+                activeAuthFlow = null;
+                setAuthActionVisible(false);
+                return;
+            }
+            antigravityOAuthPollTimer = setTimeout(() => pollAntigravityOAuthStatus(oauthState), 2000);
         }
 
         function copyCodexCode() {
@@ -1948,6 +2221,17 @@
                 codexPopup.focus();
             } else {
                 codexPopup = window.open(url, '_blank');
+            }
+        }
+
+        function openAntigravityVerification(url) {
+            if (!url || url === antigravityPopupUrl) return;
+            antigravityPopupUrl = url;
+            if (antigravityPopup && !antigravityPopup.closed) {
+                antigravityPopup.location.href = url;
+                antigravityPopup.focus();
+            } else {
+                antigravityPopup = window.open(url, '_blank');
             }
         }
 
@@ -1971,6 +2255,7 @@
         init3DEffect();
         initSettings();
         resumeCodexSession();
+        resumeAntigravitySession();
 
         // 🆕 Auto-refresh when returning from OAuth window
         // Attach click handlers to Add buttons to track login
@@ -1992,6 +2277,7 @@
             }
             if (document.visibilityState === 'visible') {
                 resumeCodexSession();
+                resumeAntigravitySession();
             }
         });
 
@@ -2005,6 +2291,7 @@
                 }, 500);
             }
             resumeCodexSession();
+            resumeAntigravitySession();
         });
 
         async function refreshAll(showToastMsg = false) {
