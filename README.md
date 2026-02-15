@@ -82,6 +82,7 @@ Run:
 docker run --rm -it \\
   -p 8964:8964 \\
   -p 51121:51121 \\
+  -p 1455-1465:1455-1465 \\
   -e ANTI_API_DATA_DIR=/app/data \\
   -e ANTI_API_NO_OPEN=1 \\
   -e ANTI_API_OAUTH_NO_OPEN=1 \\
@@ -102,8 +103,10 @@ docker compose up -d --no-build
 ```
 
 Notes:
-- OAuth callback uses port `51121`. Make sure it is mapped.
+- Antigravity OAuth callback uses port `51121`. Make sure it is mapped.
+- Codex OAuth callback uses `1455-1465` (fallback range). Map the whole range.
 - If running on a remote host, set `ANTI_API_OAUTH_REDIRECT_URL` to a public URL like `http://YOUR_HOST:51121/oauth-callback`.
+- If Codex OAuth runs on a remote host/container, set `CODEX_OAUTH_REDIRECT_URL` to a public URL like `http://YOUR_HOST:1455/auth/callback`.
 - The bind mount reuses your local `~/.anti-api` data so Docker shares the same accounts and routing config.
 - Set `ANTI_API_NO_OPEN=1` to avoid trying to open the browser inside a container.
 - If Docker Hub is unstable, the default base image uses GHCR. You can override with `BUN_IMAGE=oven/bun:1.1.38`.

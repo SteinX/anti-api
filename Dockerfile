@@ -26,6 +26,6 @@ ENV HOME=/app/data
 
 RUN mkdir -p /app/data
 
-EXPOSE 8964 51121
+EXPOSE 8964 51121 1455 1456 1457 1458 1459 1460 1461 1462 1463 1464 1465
 
 CMD ["bun", "run", "src/main.ts", "start"]

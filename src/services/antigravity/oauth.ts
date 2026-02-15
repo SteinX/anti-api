@@ -304,6 +304,7 @@ export function startOAuthCallbackServer(): Promise<{
             try {
                 server = Bun.serve({
                     port,
+                    hostname: "0.0.0.0",
                     fetch(req) {
                         const url = new URL(req.url)
 

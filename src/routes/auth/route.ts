@@ -3,14 +3,44 @@
  */
 
 import { Hono } from "hono"
-import { isAuthenticated, getUserInfo, setAuth, clearAuth, startOAuthLogin } from "~/services/antigravity/login"
+import {
+    isAuthenticated,
+    getUserInfo,
+    setAuth,
+    clearAuth,
+    startOAuthLogin,
+    startAntigravityOAuthSession,
+    pollAntigravityOAuthSession,
+    cancelAntigravityOAuthSession,
+} from "~/services/antigravity/login"
 import { accountManager } from "~/services/antigravity/account-manager"
 import { state } from "~/lib/state"
 import { authStore } from "~/services/auth/store"
-import { debugCodexOAuth, importCodexAuthSources, startCodexCliLogin, getCodexCliLoginStatus } from "~/services/codex/oauth"
+import {
+    debugCodexOAuth,
+    importCodexAuthSources,
+    getCodexCliLoginStatus,
+    startCodexOAuthSession,
+    pollCodexOAuthSession,
+    cancelCodexOAuthSession,
+    cancelCodexCliLoginSession,
+} from "~/services/codex/oauth"
 import { startCopilotDeviceFlow, pollCopilotSession, importCopilotAuthFiles } from "~/services/copilot/oauth"
 
 export const authRouter = new Hono()
+
+function syncAntigravityAccountFromState(): void {
+    accountManager.load()
+    if (!state.accessToken) return
+    accountManager.addAccount({
+        id: state.userEmail || `account-${Date.now()}`,
+        email: state.userEmail || "unknown",
+        accessToken: state.accessToken,
+        refreshToken: state.refreshToken || "",
+        expiresAt: state.tokenExpiresAt || 0,
+        projectId: state.cloudaicompanionProject,
+    })
+}
 
 // 获取认证状态
 authRouter.get("/status", (c) => {
@@ -87,20 +117,18 @@ authRouter.post("/login", async (c) => {
 
         if (provider === "codex") {
             if (forceInteractive) {
-                // 使用浏览器 OAuth 登录获取完整权限的 token
                 try {
-                    const { startCodexOAuthLogin } = await import("~/services/codex/oauth")
-                    const account = await startCodexOAuthLogin()
+                    const session = startCodexOAuthSession()
                     return c.json({
                         success: true,
                         provider: "codex",
-                        status: "success",
+                        status: "pending",
                         source: "browser-oauth",
-                        account: {
-                            id: account.id,
-                            email: account.email,
-                            source: account.authSource,
-                        },
+                        oauth_state: session.state,
+                        auth_url: session.authUrl,
+                        fallback_url: session.fallbackUrl,
+                        redirect_uri: session.redirectUri,
+                        expires_at: session.expiresAt,
                     })
                 } catch (error) {
                     return c.json({ success: false, error: (error as Error).message }, 400)
@@ -130,20 +158,28 @@ authRouter.post("/login", async (c) => {
         }
 
         // 默认 Antigravity
+        if (forceInteractive) {
+            try {
+                const session = await startAntigravityOAuthSession()
+                return c.json({
+                    success: true,
+                    provider: "antigravity",
+                    status: "pending",
+                    source: "browser-oauth",
+                    oauth_state: session.state,
+                    auth_url: session.authUrl,
+                    redirect_uri: session.redirectUri,
+                    expires_at: session.expiresAt,
+                })
+            } catch (error) {
+                return c.json({ success: false, error: (error as Error).message }, 400)
+            }
+        }
+
         if (!body.accessToken) {
             const result = await startOAuthLogin()
             if (result.success) {
-                accountManager.load()
-                if (state.accessToken && state.refreshToken) {
-                    accountManager.addAccount({
-                        id: state.userEmail || `account-${Date.now()}`,
-                        email: state.userEmail || "unknown",
-                        accessToken: state.accessToken,
-                        refreshToken: state.refreshToken,
-                        expiresAt: state.tokenExpiresAt || 0,
-                        projectId: state.cloudaicompanionProject,
-                    })
-                }
+                syncAntigravityAccountFromState()
                 return c.json({
                     success: true,
                     authenticated: true,
@@ -156,15 +192,7 @@ authRouter.post("/login", async (c) => {
         }
 
         setAuth(body.accessToken, body.refreshToken, body.email, body.name)
-        accountManager.load()
-        accountManager.addAccount({
-            id: body.email || `account-${Date.now()}`,
-            email: body.email || "unknown",
-            accessToken: body.accessToken,
-            refreshToken: body.refreshToken || "",
-            expiresAt: state.tokenExpiresAt || 0,
-            projectId: state.cloudaicompanionProject,
-        })
+        syncAntigravityAccountFromState()
         return c.json({
             success: true,
             authenticated: true,
@@ -213,6 +241,59 @@ authRouter.get("/codex/status", async (c) => {
             source: account.authSource,
         })),
     })
+})
+
+authRouter.get("/codex/oauth/status", async (c) => {
+    const oauthState = c.req.query("state")
+    if (!oauthState) {
+        return c.json({ success: false, error: "state required" }, 400)
+    }
+    const result = await pollCodexOAuthSession(oauthState)
+    return c.json({
+        success: result.status !== "error",
+        status: result.status,
+        message: result.message,
+        account: result.account ? {
+            id: result.account.id,
+            email: result.account.email,
+            source: result.account.authSource,
+        } : undefined,
+    })
+})
+
+authRouter.post("/codex/oauth/cancel", (c) => {
+    const oauthState = c.req.query("state")
+    const cancelled = cancelCodexOAuthSession(oauthState)
+    return c.json({ success: cancelled })
+})
+
+authRouter.post("/codex/cancel", (c) => {
+    const sessionId = c.req.query("session_id")
+    const cancelled = cancelCodexCliLoginSession(sessionId)
+    return c.json({ success: cancelled })
+})
+
+authRouter.get("/antigravity/oauth/status", async (c) => {
+    const oauthState = c.req.query("state")
+    if (!oauthState) {
+        return c.json({ success: false, error: "state required" }, 400)
+    }
+    const result = await pollAntigravityOAuthSession(oauthState)
+    if (result.status === "success") {
+        syncAntigravityAccountFromState()
+    }
+    return c.json({
+        success: result.status !== "error",
+        status: result.status,
+        message: result.message,
+        email: result.email,
+    })
+})
+
+authRouter.post("/antigravity/oauth/cancel", (c) => {
+    const oauthState = c.req.query("state")
+    const cancelled = cancelAntigravityOAuthSession(oauthState)
+    return c.json({ success: cancelled })
 })
 
 authRouter.get("/codex/debug", async (c) => {

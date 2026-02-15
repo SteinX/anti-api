@@ -31,6 +31,185 @@ interface AuthData {
     projectId?: string
 }
 
+type OAuthCallbackResult = {
+    code?: string
+    state?: string
+    error?: string
+}
+
+type AntigravityOAuthSession = {
+    state: string
+    authUrl: string
+    redirectUri: string
+    expiresAt: number
+    server: { stop: () => void }
+    callback?: OAuthCallbackResult
+}
+
+let activeAntigravityOAuthSession: AntigravityOAuthSession | null = null
+
+function printManualAuthUrl(url: string): void {
+    const line = `[anti-api] Antigravity login URL: ${url}`
+    try {
+        process.stdout.write(`${line}\n`)
+    } catch {
+        console.log(line)
+    }
+}
+
+function openBrowser(url: string): boolean {
+    const platform = process.platform
+    let cmd = "xdg-open"
+    let args = [url]
+    if (platform === "darwin") {
+        cmd = "open"
+    } else if (platform === "win32") {
+        cmd = "cmd"
+        args = ["/c", "start", url]
+    }
+    try {
+        Bun.spawn([cmd, ...args], { stdout: "ignore", stderr: "ignore" })
+        return true
+    } catch {
+        return false
+    }
+}
+
+function stopAntigravityOAuthSession(): void {
+    if (!activeAntigravityOAuthSession) return
+    try {
+        activeAntigravityOAuthSession.server.stop()
+    } catch {}
+    activeAntigravityOAuthSession = null
+}
+
+async function completeOAuthCallbackLogin(
+    callbackResult: OAuthCallbackResult,
+    oauthState: string,
+    redirectUri: string
+): Promise<{ success: boolean; error?: string; email?: string }> {
+    if (callbackResult.error) {
+        return { success: false, error: callbackResult.error }
+    }
+
+    if (!callbackResult.code || !callbackResult.state) {
+        return { success: false, error: "Missing code or state in callback" }
+    }
+
+    if (callbackResult.state !== oauthState) {
+        return { success: false, error: "State mismatch - possible CSRF attack" }
+    }
+
+    const tokens = await exchangeCode(callbackResult.code, redirectUri)
+    const userInfo = await fetchUserInfo(tokens.accessToken)
+    const projectId = await getProjectID(tokens.accessToken)
+    const resolvedProjectId = projectId || generateMockProjectId()
+    if (!projectId) {
+        consola.warn(`No project ID returned, using fallback: ${resolvedProjectId}`)
+    }
+
+    state.accessToken = tokens.accessToken
+    state.antigravityToken = tokens.accessToken
+    state.refreshToken = tokens.refreshToken
+    state.tokenExpiresAt = Date.now() + tokens.expiresIn * 1000
+    state.userEmail = userInfo.email
+    state.userName = userInfo.email.split("@")[0]
+    state.cloudaicompanionProject = resolvedProjectId
+
+    saveAuth()
+
+    consola.success(`✓ Login successful: ${userInfo.email}`)
+    consola.success(`✓ Project ID: ${resolvedProjectId}`)
+    return { success: true, email: userInfo.email }
+}
+
+export async function startAntigravityOAuthSession(): Promise<{
+    state: string
+    authUrl: string
+    redirectUri: string
+    expiresAt: number
+}> {
+    if (activeAntigravityOAuthSession && Date.now() < activeAntigravityOAuthSession.expiresAt) {
+        return {
+            state: activeAntigravityOAuthSession.state,
+            authUrl: activeAntigravityOAuthSession.authUrl,
+            redirectUri: activeAntigravityOAuthSession.redirectUri,
+            expiresAt: activeAntigravityOAuthSession.expiresAt,
+        }
+    }
+
+    stopAntigravityOAuthSession()
+
+    const { server, port, waitForCallback } = await startOAuthCallbackServer()
+    const oauthState = generateState()
+    const redirectUri = process.env.ANTI_API_OAUTH_REDIRECT_URL || `http://localhost:${port}/oauth-callback`
+    const authUrl = generateAuthURL(redirectUri, oauthState)
+
+    activeAntigravityOAuthSession = {
+        state: oauthState,
+        authUrl,
+        redirectUri,
+        expiresAt: Date.now() + 5 * 60 * 1000,
+        server,
+    }
+
+    void waitForCallback()
+        .then((result) => {
+            if (!activeAntigravityOAuthSession || activeAntigravityOAuthSession.state !== oauthState) return
+            activeAntigravityOAuthSession.callback = result
+        })
+        .catch((error) => {
+            if (!activeAntigravityOAuthSession || activeAntigravityOAuthSession.state !== oauthState) return
+            activeAntigravityOAuthSession.callback = { error: (error as Error).message }
+        })
+
+    return {
+        state: oauthState,
+        authUrl,
+        redirectUri,
+        expiresAt: activeAntigravityOAuthSession.expiresAt,
+    }
+}
+
+export async function pollAntigravityOAuthSession(oauthState: string): Promise<{
+    status: "pending" | "success" | "error"
+    message?: string
+    email?: string
+}> {
+    const session = activeAntigravityOAuthSession
+    if (!session || session.state !== oauthState) {
+        return { status: "error", message: "No active Antigravity OAuth session" }
+    }
+
+    if (Date.now() > session.expiresAt) {
+        stopAntigravityOAuthSession()
+        return { status: "error", message: "Authentication timeout (5 minutes)" }
+    }
+
+    if (!session.callback) {
+        return { status: "pending" }
+    }
+
+    try {
+        const loginResult = await completeOAuthCallbackLogin(session.callback, session.state, session.redirectUri)
+        stopAntigravityOAuthSession()
+        if (!loginResult.success) {
+            return { status: "error", message: loginResult.error || "Antigravity authentication failed" }
+        }
+        return { status: "success", email: loginResult.email }
+    } catch (error) {
+        stopAntigravityOAuthSession()
+        return { status: "error", message: (error as Error).message }
+    }
+}
+
+export function cancelAntigravityOAuthSession(oauthState?: string): boolean {
+    if (!activeAntigravityOAuthSession) return false
+    if (oauthState && activeAntigravityOAuthSession.state !== oauthState) return false
+    stopAntigravityOAuthSession()
+    return true
+}
+
 /**
  * 初始化认证 - 从文件加载已保存的认证
  */
@@ -148,13 +327,12 @@ export async function startOAuthLogin(): Promise<{ success: boolean; error?: str
         const oauthState = generateState()
         const redirectUri = process.env.ANTI_API_OAUTH_REDIRECT_URL || `http://localhost:${port}/oauth-callback`
         const authUrl = generateAuthURL(redirectUri, oauthState)
+        printManualAuthUrl(authUrl)
 
         // 3. 打开浏览器
         consola.info(`Open this URL to login: ${authUrl}`)
         if (process.env.ANTI_API_OAUTH_NO_OPEN !== "1") {
-            try {
-                await Bun.$`open ${authUrl}`.quiet()
-            } catch {
+            if (!openBrowser(authUrl)) {
                 consola.warn("Failed to open browser automatically")
             }
         }
@@ -173,47 +351,7 @@ export async function startOAuthLogin(): Promise<{ success: boolean; error?: str
         server.stop()
         oauthServer = null
 
-        // 6. 检查回调结果
-        if (callbackResult.error) {
-            return { success: false, error: callbackResult.error }
-        }
-
-        if (!callbackResult.code || !callbackResult.state) {
-            return { success: false, error: "Missing code or state in callback" }
-        }
-
-        if (callbackResult.state !== oauthState) {
-            return { success: false, error: "State mismatch - possible CSRF attack" }
-        }
-
-        // 7. 交换 code 获取 tokens
-        const tokens = await exchangeCode(callbackResult.code, redirectUri)
-
-        // 8. 获取用户信息
-        const userInfo = await fetchUserInfo(tokens.accessToken)
-
-        // 9. 获取 Project ID
-        const projectId = await getProjectID(tokens.accessToken)
-        const resolvedProjectId = projectId || generateMockProjectId()
-        if (!projectId) {
-            consola.warn(`No project ID returned, using fallback: ${resolvedProjectId}`)
-        }
-
-        // 10. 保存认证信息
-        state.accessToken = tokens.accessToken
-        state.antigravityToken = tokens.accessToken
-        state.refreshToken = tokens.refreshToken
-        state.tokenExpiresAt = Date.now() + tokens.expiresIn * 1000
-        state.userEmail = userInfo.email
-        state.userName = userInfo.email.split("@")[0]
-        state.cloudaicompanionProject = resolvedProjectId
-
-        saveAuth()
-
-        consola.success(`✓ Login successful: ${userInfo.email}`)
-        consola.success(`✓ Project ID: ${resolvedProjectId}`)
-
-        return { success: true, email: userInfo.email }
+        return await completeOAuthCallbackLogin(callbackResult, oauthState, redirectUri)
     } catch (error) {
         consola.error("OAuth login failed:", error)
         return { success: false, error: (error as Error).message }
@@ -221,9 +359,7 @@ export async function startOAuthLogin(): Promise<{ success: boolean; error?: str
         if (oauthServer) {
             try {
                 oauthServer.stop()
-            } catch {
-                // Best-effort cleanup for abandoned OAuth attempts
-            }
+            } catch {}
         }
     }
 }
