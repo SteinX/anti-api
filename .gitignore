@@ -7,3 +7,4 @@ data/
 proj-1/
 proj-2/
 rust-proxy/target/
+docker-test.sh

@@ -7,7 +7,9 @@
     "dev": "bun run --watch src/main.ts start",
     "start": "bun run src/main.ts start",
     "build": "bun build src/main.ts --outdir dist --target bun",
-    "test": "bun test"
+    "test": "bun test",
+    "ghcr:publish": "bash ./publish-ghcr.sh",
+    "docker:publish": "bash ./publish-ghcr.sh"
   },
   "dependencies": {
     "@bufbuild/protobuf": "^2.2.3",
