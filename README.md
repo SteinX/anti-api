@@ -76,6 +76,25 @@ Build:
 docker build -t anti-api .
 ```
 
+Publish to GHCR:
+
+```bash
+# 1) Login once
+echo "<GH_TOKEN>" | docker login ghcr.io -u <github-username> --password-stdin
+
+# 2) Publish version tag + latest
+bash ./publish-ghcr.sh <github-owner>
+
+# Optional: custom image name and tag
+bash ./publish-ghcr.sh <github-owner> anti-api v2.6.0
+```
+
+Manual publish via GitHub Actions:
+
+- Go to Actions -> `Publish GHCR Image` -> `Run workflow`
+- Optional inputs: `image_name`, `tag`, `push_latest`, `bun_image`
+- The workflow pushes to `ghcr.io/<repo-owner>/<image_name>`
+
 Run:
 
 ```bash
@@ -109,7 +128,7 @@ Notes:
 - If Codex OAuth runs on a remote host/container, set `CODEX_OAUTH_REDIRECT_URL` to a public URL like `http://YOUR_HOST:1455/auth/callback`.
 - The bind mount reuses your local `~/.anti-api` data so Docker shares the same accounts and routing config.
 - Set `ANTI_API_NO_OPEN=1` to avoid trying to open the browser inside a container.
-- If Docker Hub is unstable, the default base image uses GHCR. You can override with `BUN_IMAGE=oven/bun:1.1.38`.
+- Default base image is `oven/bun:1.1.38`. If Docker Hub is unstable, you can override with `BUN_IMAGE=ghcr.io/oven-sh/bun:1.1.38`.
  - ngrok will auto-download inside the container if missing (Linux only).
 
 ## Development

@@ -1,0 +1,84 @@
+name: Publish GHCR Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_name:
+        description: "Image name"
+        required: true
+        default: "anti-api"
+      tag:
+        description: "Tag to publish (empty = v<package.json version>)"
+        required: false
+        default: ""
+      push_latest:
+        description: "Also push latest tag"
+        required: true
+        type: boolean
+        default: true
+      bun_image:
+        description: "BUN_IMAGE build arg"
+        required: true
+        default: "oven/bun:1.1.38"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve publish vars
+        id: vars
+        shell: bash
+        run: |
+          set -euo pipefail
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          if [[ -n "${{ inputs.tag }}" ]]; then
+            tag="${{ inputs.tag }}"
+          else
+            version="$(node -p "require('./package.json').version")"
+            tag="v${version}"
+          fi
+          image="ghcr.io/${owner}/${{ inputs.image_name }}"
+          tags="${image}:${tag}"
+          if [[ "${{ inputs.push_latest }}" == "true" ]]; then
+            tags+=$'\n'"${image}:latest"
+          fi
+          echo "owner=${owner}" >> "${GITHUB_OUTPUT}"
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+          echo "image=${image}" >> "${GITHUB_OUTPUT}"
+          {
+            echo "tags<<EOF"
+            echo "${tags}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          build-args: |
+            BUN_IMAGE=${{ inputs.bun_image }}
+          tags: ${{ steps.vars.outputs.tags }}
+
+      - name: Publish summary
+        shell: bash
+        run: |
+          echo "Published: ${{ steps.vars.outputs.image }}:${{ steps.vars.outputs.tag }}" >> "${GITHUB_STEP_SUMMARY}"
+          if [[ "${{ inputs.push_latest }}" == "true" ]]; then
+            echo "Published: ${{ steps.vars.outputs.image }}:latest" >> "${GITHUB_STEP_SUMMARY}"
+          fi
