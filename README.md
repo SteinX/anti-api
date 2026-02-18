@@ -92,7 +92,8 @@ bash ./publish-ghcr.sh <github-owner> anti-api v2.6.0
 Manual publish via GitHub Actions:
 
 - Go to Actions -> `Publish GHCR Image` -> `Run workflow`
-- Optional inputs: `image_name`, `tag`, `push_latest`, `bun_image`
+- Optional inputs: `image_name`, `tag`, `push_latest`, `bun_image`, `platforms`
+- Default `platforms` is `linux/amd64,linux/arm64` (includes aarch64)
 - The workflow pushes to `ghcr.io/<repo-owner>/<image_name>`
 
 Run:
