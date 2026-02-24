@@ -221,7 +221,7 @@ export async function fetchInsecureJson(
     const target = new URL(url)
     const method = options.method || "GET"
     const headers = {
-        "User-Agent": "anti-api",
+        "User-Agent": PROJECT_USER_AGENT,
         ...(options.headers || {}),
     }
     const agent = new https.Agent({ rejectUnauthorized: false })

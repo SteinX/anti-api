@@ -2,7 +2,7 @@ import { test, expect, mock, beforeAll, afterAll } from "bun:test"
 import { mkdtempSync, mkdirSync, writeFileSync } from "fs"
 import { tmpdir } from "os"
 import { join } from "path"
-import { UpstreamError } from "~/lib/error"
+import { UpstreamError } from "../src/lib/error"
 
 const quotaErrorBody = JSON.stringify({
     error: {
@@ -69,6 +69,7 @@ mock.module("~/services/antigravity/account-manager", () => ({
     accountManager: {
         hasAccount: () => true,
         isAccountRateLimited: () => rateLimitAll,
+        isAccountInFlight: () => false,
         markRateLimitedFromError: async () => ({ reason: "quota_exhausted", durationMs: 60_000 }),
         clearAllRateLimits: () => { },
     },
@@ -122,7 +123,7 @@ beforeAll(async () => {
         accountRouting: { smartSwitch: false, routes: [] },
     }, null, 2))
 
-    const router = await import("~/services/routing/router")
+    const router = await import("../src/services/routing/router")
     createRoutedCompletion = router.createRoutedCompletion
 })
 
