@@ -573,7 +573,7 @@ async function createFlowCompletionWithEntries(request: RoutedRequest, entries: 
                         }
                     }
 
-                    if (index < entries.length - 1) {
+                    if (flowState.cursor === startIndex && index < entries.length - 1) {
                         flowState.cursor = index + 1
                     }
                 }
@@ -891,7 +891,7 @@ async function* createFlowCompletionStreamWithEntries(request: RoutedRequest, en
                         }
                     }
 
-                    if (index < entries.length - 1) {
+                    if (flowState.cursor === startIndex && index < entries.length - 1) {
                         flowState.cursor = index + 1
                     }
                 }
