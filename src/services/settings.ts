@@ -7,8 +7,10 @@ import { existsSync, readFileSync, writeFileSync, renameSync, rmSync } from "fs"
 import { join } from "path"
 import { ensureDataDir, getDataDir } from "~/lib/data-dir"
 
-const SETTINGS_DIR = getDataDir()
-const SETTINGS_FILE = join(SETTINGS_DIR, "settings.json")
+function getSettingsFile(): string {
+    const settingsDir = getDataDir()
+    return join(settingsDir, "settings.json")
+}
 
 export type ReasoningEffort = "none" | "low" | "medium" | "high"
 export interface AppSettings {
@@ -46,8 +48,9 @@ function ensureSettingsDir(): void {
 export function loadSettings(): AppSettings {
     try {
         ensureSettingsDir()
-        if (existsSync(SETTINGS_FILE)) {
-            const data = readFileSync(SETTINGS_FILE, "utf-8")
+        const settingsFile = getSettingsFile()
+        if (existsSync(settingsFile)) {
+            const data = readFileSync(settingsFile, "utf-8")
             return { ...DEFAULT_SETTINGS, ...JSON.parse(data) }
         }
     } catch (error) {
@@ -58,20 +61,21 @@ export function loadSettings(): AppSettings {
 
 export function saveSettings(settings: Partial<AppSettings>): AppSettings {
     ensureSettingsDir()
+    const settingsFile = getSettingsFile()
     const current = loadSettings()
     const updated = { ...current, ...settings }
     const payload = JSON.stringify(updated, null, 2)
-    const tmpFile = `${SETTINGS_FILE}.tmp`
+    const tmpFile = `${settingsFile}.tmp`
     writeFileSync(tmpFile, payload, "utf-8")
     try {
-        renameSync(tmpFile, SETTINGS_FILE)
+        renameSync(tmpFile, settingsFile)
     } catch {
         try {
-            rmSync(SETTINGS_FILE, { force: true })
+            rmSync(settingsFile, { force: true })
         } catch {
             // Ignore cleanup failures, rename will throw if it still can't proceed.
         }
-        renameSync(tmpFile, SETTINGS_FILE)
+        renameSync(tmpFile, settingsFile)
     }
     return updated
 }

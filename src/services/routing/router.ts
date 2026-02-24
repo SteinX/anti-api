@@ -530,6 +530,7 @@ async function createFlowCompletionWithEntries(request: RoutedRequest, entries: 
                 continue
             }
             if (error instanceof UpstreamError && shouldFallbackOnUpstream(entry, error)) {
+                const startedOnCursor = !!(flowState && index === startIndex && flowState.cursor === startIndex)
                 const shouldAdvance = shouldAdvanceCursorOnError(entry, error)
                 if (shouldAdvance) {
                     applyFlowRateLimit(entry, error, request.model)
@@ -540,8 +541,7 @@ async function createFlowCompletionWithEntries(request: RoutedRequest, entries: 
 
                 if (
                     flowState &&
-                    index === startIndex &&
-                    flowState.cursor === startIndex &&
+                    startedOnCursor &&
                     !probedHead &&
                     entries.length > 1 &&
                     (isQuotaExhausted(error) || shouldProbeFlowHead(flowState, error))
@@ -848,6 +848,7 @@ async function* createFlowCompletionStreamWithEntries(request: RoutedRequest, en
                 continue
             }
             if (error instanceof UpstreamError && shouldFallbackOnUpstream(entry, error)) {
+                const startedOnCursor = !!(flowState && index === startIndex && flowState.cursor === startIndex)
                 const shouldAdvance = shouldAdvanceCursorOnError(entry, error)
                 if (shouldAdvance) {
                     applyFlowRateLimit(entry, error, request.model)
@@ -858,8 +859,7 @@ async function* createFlowCompletionStreamWithEntries(request: RoutedRequest, en
 
                 if (
                     flowState &&
-                    index === startIndex &&
-                    flowState.cursor === startIndex &&
+                    startedOnCursor &&
                     !probedHead &&
                     entries.length > 1 &&
                     (isQuotaExhausted(error) || shouldProbeFlowHead(flowState, error))

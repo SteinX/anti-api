@@ -354,7 +354,7 @@ MIT
 - **路由继承** - 支持直接使用当前 active flow
 - **路由刷新** - routing 页面新增刷新按钮
 - **配额稳定性** - `usage_limit_reached` 统一视为额度耗尽，触发自动切换
-- **Antigravity 兼容** - 统一 User-Agent 版本为 1.15.8，避免版本过旧拦截
+- **Antigravity 兼容** - 统一 User-Agent 版本为 1.18.4，避免版本过旧拦截
 - **一键更新** - 使用 `./a --update` 或 `start.command --update` 直接覆盖更新并保留数据
 
 ## 特性
