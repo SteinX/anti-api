@@ -31,6 +31,7 @@ interface RoutedRequest {
         name?: string
     }
     maxTokens?: number
+    reasoningEffort?: "none" | "low" | "medium" | "high"
 }
 
 type FlowStickyState = {
@@ -493,7 +494,7 @@ async function createFlowCompletionWithEntries(request: RoutedRequest, entries: 
 
         if (entry.provider === "codex") {
             const startTime = Date.now()
-            const result = await createCodexCompletion(account, entry.modelId, request.messages, request.tools, request.maxTokens)
+            const result = await createCodexCompletion(account, entry.modelId, request.messages, request.tools, request.maxTokens, request.reasoningEffort)
             recordProviderUsage(entry.modelId, result)
             const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
             console.log(formatSuccessLine({ elapsed, model: request.model, provider: "codex", account: accountDisplay, routeTag: "fr" }))
@@ -502,7 +503,7 @@ async function createFlowCompletionWithEntries(request: RoutedRequest, entries: 
 
         if (entry.provider === "copilot") {
             const startTime = Date.now()
-            const result = await createCopilotCompletion(account, entry.modelId, request.messages, request.tools, request.maxTokens)
+            const result = await createCopilotCompletion(account, entry.modelId, request.messages, request.tools, request.maxTokens, request.reasoningEffort)
             recordProviderUsage(entry.modelId, result)
             const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
             console.log(formatSuccessLine({ elapsed, model: request.model, provider: "copilot", account: accountDisplay, routeTag: "fr" }))
@@ -611,7 +612,7 @@ async function createFlowCompletionWithEntries(request: RoutedRequest, entries: 
 
             if (entry.provider === "codex") {
                 const startTime = Date.now()
-                const result = await createCodexCompletion(account, entry.modelId, request.messages, request.tools, request.maxTokens)
+                const result = await createCodexCompletion(account, entry.modelId, request.messages, request.tools, request.maxTokens, request.reasoningEffort)
                 recordProviderUsage(entry.modelId, result)
                 const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
                 console.log(formatSuccessLine({ elapsed, model: request.model, provider: "codex", account: accountDisplay, routeTag: "fr" }))
@@ -620,7 +621,7 @@ async function createFlowCompletionWithEntries(request: RoutedRequest, entries: 
 
             if (entry.provider === "copilot") {
                 const startTime = Date.now()
-                const result = await createCopilotCompletion(account, entry.modelId, request.messages, request.tools, request.maxTokens)
+                const result = await createCopilotCompletion(account, entry.modelId, request.messages, request.tools, request.maxTokens, request.reasoningEffort)
                 recordProviderUsage(entry.modelId, result)
                 const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
                 console.log(formatSuccessLine({ elapsed, model: request.model, provider: "copilot", account: accountDisplay, routeTag: "fr" }))
@@ -679,7 +680,7 @@ async function createAccountCompletionWithEntries(request: RoutedRequest, entrie
 
             if (entry.provider === "codex") {
                 const startTime = Date.now()
-                const result = await createCodexCompletion(account, request.model, request.messages, request.tools, request.maxTokens)
+                const result = await createCodexCompletion(account, request.model, request.messages, request.tools, request.maxTokens, request.reasoningEffort)
                 recordProviderUsage(request.model, result)
                 const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
                 console.log(formatSuccessLine({ elapsed, model: request.model, provider: "codex", account: accountDisplay, routeTag: "ar" }))
@@ -689,7 +690,7 @@ async function createAccountCompletionWithEntries(request: RoutedRequest, entrie
 
             if (entry.provider === "copilot") {
                 const startTime = Date.now()
-                const result = await createCopilotCompletion(account, request.model, request.messages, request.tools, request.maxTokens)
+                const result = await createCopilotCompletion(account, request.model, request.messages, request.tools, request.maxTokens, request.reasoningEffort)
                 recordProviderUsage(request.model, result)
                 const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
                 console.log(formatSuccessLine({ elapsed, model: request.model, provider: "copilot", account: accountDisplay, routeTag: "ar" }))
@@ -789,10 +790,10 @@ async function* createFlowCompletionStreamWithEntries(request: RoutedRequest, en
         let startTime = 0
         if (entry.provider === "codex") {
             startTime = Date.now()
-            completion = await createCodexCompletion(account, entry.modelId, request.messages, request.tools, request.maxTokens)
+            completion = await createCodexCompletion(account, entry.modelId, request.messages, request.tools, request.maxTokens, request.reasoningEffort)
         } else if (entry.provider === "copilot") {
             startTime = Date.now()
-            completion = await createCopilotCompletion(account, entry.modelId, request.messages, request.tools, request.maxTokens)
+            completion = await createCopilotCompletion(account, entry.modelId, request.messages, request.tools, request.maxTokens, request.reasoningEffort)
         }
 
         if (!completion) {
@@ -931,10 +932,10 @@ async function* createFlowCompletionStreamWithEntries(request: RoutedRequest, en
         let startTime = 0
         if (entry.provider === "codex") {
             startTime = Date.now()
-            completion = await createCodexCompletion(account, entry.modelId, request.messages, request.tools, request.maxTokens)
+            completion = await createCodexCompletion(account, entry.modelId, request.messages, request.tools, request.maxTokens, request.reasoningEffort)
         } else if (entry.provider === "copilot") {
             startTime = Date.now()
-            completion = await createCopilotCompletion(account, entry.modelId, request.messages, request.tools, request.maxTokens)
+            completion = await createCopilotCompletion(account, entry.modelId, request.messages, request.tools, request.maxTokens, request.reasoningEffort)
         }
 
         if (!completion) {
@@ -1022,10 +1023,10 @@ async function* createAccountCompletionStreamWithEntries(request: RoutedRequest,
             let startTime = 0
             if (entry.provider === "codex") {
                 startTime = Date.now()
-                completion = await createCodexCompletion(account, request.model, request.messages, request.tools, request.maxTokens)
+                completion = await createCodexCompletion(account, request.model, request.messages, request.tools, request.maxTokens, request.reasoningEffort)
             } else if (entry.provider === "copilot") {
                 startTime = Date.now()
-                completion = await createCopilotCompletion(account, request.model, request.messages, request.tools, request.maxTokens)
+                completion = await createCopilotCompletion(account, request.model, request.messages, request.tools, request.maxTokens, request.reasoningEffort)
             }
 
             if (!completion) {

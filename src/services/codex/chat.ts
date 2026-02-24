@@ -425,7 +425,8 @@ async function requestChatCompletion(
     model: string,
     messages: ClaudeMessage[],
     tools?: ClaudeTool[],
-    maxTokens?: number
+    maxTokens?: number,
+    reasoningEffort?: string
 ): Promise<{ completion: OpenAIResponse; model: string }> {
     const requestBody = {
         model,
@@ -498,7 +499,8 @@ async function requestResponsesCompletion(
     model: string,
     messages: ClaudeMessage[],
     tools?: ClaudeTool[],
-    maxTokens?: number
+    maxTokens?: number,
+    reasoningEffort?: string
 ): Promise<{ completion: OpenAIResponse; model: string }> {
     // CLIProxyAPI format: Codex Responses API requires specific fields
     // Extract system message as instructions, or use default
@@ -526,7 +528,7 @@ async function requestResponsesCompletion(
         stream: true,
         store: false,
         parallel_tool_calls: true,
-        "reasoning": { "effort": "medium", "summary": "auto" },
+        "reasoning": { "effort": reasoningEffort || "medium", "summary": "auto" },
         include: ["reasoning.encrypted_content"],
     }
     const url = `${CODEX_API_BASE}${RESPONSES_PATH}`
@@ -564,7 +566,8 @@ export async function createCodexCompletion(
     model: string,
     messages: ClaudeMessage[],
     tools?: ClaudeTool[],
-    maxTokens?: number
+    maxTokens?: number,
+    reasoningEffort?: string
 ) {
     const effectiveAccount = await refreshCodexAccountIfNeeded(account)
 
@@ -575,10 +578,10 @@ export async function createCodexCompletion(
 
     const attempt = async (targetModel: string): Promise<OpenAIResponse> => {
         if (shouldUseResponses(targetModel)) {
-            const result = await requestResponsesCompletion(effectiveAccount, targetModel, messages, tools, maxTokens)
+            const result = await requestResponsesCompletion(effectiveAccount, targetModel, messages, tools, maxTokens, reasoningEffort)
             return result.completion
         }
-        const result = await requestChatCompletion(effectiveAccount, targetModel, messages, tools, maxTokens)
+        const result = await requestChatCompletion(effectiveAccount, targetModel, messages, tools, maxTokens, reasoningEffort)
         return result.completion
     }
 

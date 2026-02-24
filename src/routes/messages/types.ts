@@ -19,6 +19,7 @@ export interface AnthropicMessagesPayload {
         type: "auto" | "any" | "tool" | "none"
         name?: string
     }
+    reasoning_effort?: "none" | "low" | "medium" | "high"
 }
 
 export interface AnthropicMessage {
