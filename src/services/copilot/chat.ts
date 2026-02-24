@@ -97,7 +97,8 @@ export async function createCopilotCompletion(
     model: string,
     messages: ClaudeMessage[],
     tools?: ClaudeTool[],
-    maxTokens?: number
+    maxTokens?: number,
+    reasoningEffort?: string
 ) {
     const apiToken = await getCopilotApiToken(account)
 

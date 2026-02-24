@@ -173,6 +173,7 @@ export interface ChatRequest {
         name?: string
     }
     maxTokens?: number
+    reasoningEffort?: "none" | "low" | "medium" | "high"
 }
 
 export interface ContentBlock {

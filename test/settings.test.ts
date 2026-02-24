@@ -35,9 +35,13 @@ test("loadSettings returns defaults in a fresh home", async () => {
         autoNgrok: false,
         autoOpenDashboard: true,
         autoRefresh: true,
+        autoRestart: false,
         privacyMode: false,
         compactLayout: false,
         trackUsage: true,
+        optimizeQuotaSort: false,
+        captureLogs: false,
+        reasoningEffort: "medium",
     })
 
     rmSync(dir, { recursive: true, force: true })

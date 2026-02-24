@@ -628,6 +628,20 @@
                         </div>
                         <input type="checkbox" id="setting-auto-restart" class="toggle-switch">
                     </label>
+                    <!-- Reasoning Effort -->
+                    <div class="flex items-center justify-between p-4 rounded-xl border border-gray-800 hover:border-gray-700 transition-colors">
+                        <div>
+                            <div class="text-gray-200 font-medium">Reasoning Effort</div>
+                            <div class="text-gray-500 text-xs mt-0.5">Default reasoning effort level for AI responses</div>
+                        </div>
+                        <select id="setting-reasoning-effort"
+                            class="bg-black border border-gray-700 text-gray-300 text-sm rounded-lg px-3 py-1.5 focus:border-gray-500 focus:outline-none">
+                            <option value="none">None</option>
+                            <option value="low">Low</option>
+                            <option value="medium" selected>Medium</option>
+                            <option value="high">High</option>
+                        </select>
+                    </div>
                 </div>
             </div>
 
@@ -772,7 +786,8 @@
             compactLayout: false,
             trackUsage: true,
             optimizeQuotaSort: false,
-            captureLogs: false
+            captureLogs: false,
+            reasoningEffort: 'medium'
         };
 
         async function loadSettings() {
@@ -797,7 +812,8 @@
                 compactLayout: document.getElementById('setting-compact-layout').checked,
                 trackUsage: document.getElementById('setting-track-usage').checked,
                 optimizeQuotaSort: document.getElementById('setting-optimize-quota-sort').checked,
-                captureLogs: document.getElementById('setting-capture-logs').checked
+                captureLogs: document.getElementById('setting-capture-logs').checked,
+                reasoningEffort: document.getElementById('setting-reasoning-effort').value
             };
             try {
                 const res = await fetch(`${API_BASE}/settings`, {
@@ -841,6 +857,7 @@
             document.getElementById('setting-track-usage').checked = true;
             document.getElementById('setting-optimize-quota-sort').checked = false;
             document.getElementById('setting-capture-logs').checked = false;
+            document.getElementById('setting-reasoning-effort').value = 'medium';
 
             // Save defaults to server
             await saveAllSettings();
@@ -858,6 +875,7 @@
             document.getElementById('setting-track-usage').checked = true;
             document.getElementById('setting-optimize-quota-sort').checked = true;
             document.getElementById('setting-capture-logs').checked = true;
+            document.getElementById('setting-reasoning-effort').value = 'high';
 
             await saveAllSettings();
             showSettingsToast('All settings enabled');
@@ -874,6 +892,7 @@
             document.getElementById('setting-track-usage').checked = false;
             document.getElementById('setting-optimize-quota-sort').checked = false;
             document.getElementById('setting-capture-logs').checked = false;
+            document.getElementById('setting-reasoning-effort').value = 'none';
 
             await saveAllSettings();
             showSettingsToast('All settings disabled');
@@ -957,6 +976,7 @@
             document.getElementById('setting-track-usage').checked = settings.trackUsage;
             document.getElementById('setting-optimize-quota-sort').checked = settings.optimizeQuotaSort;
             document.getElementById('setting-capture-logs').checked = settings.captureLogs;
+            document.getElementById('setting-reasoning-effort').value = settings.reasoningEffort || 'medium';
             window._privacyMode = settings.privacyMode;
             window._compactLayout = settings.compactLayout;
             window._trackUsage = settings.trackUsage;

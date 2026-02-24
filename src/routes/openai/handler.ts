@@ -19,6 +19,7 @@ import {
 import { validateChatRequest } from "~/lib/validation"
 import { rateLimiter } from "~/lib/rate-limiter"
 import { forwardError, summarizeUpstreamError, UpstreamError } from "~/lib/error"
+import { getSetting, type ReasoningEffort } from "~/services/settings"
 
 function normalizeChatPayload(payload: OpenAIChatCompletionRequest): void {
     if (payload.max_tokens !== undefined && (payload.max_tokens === null || payload.max_tokens <= 0)) {
@@ -60,9 +61,10 @@ export async function handleChatCompletion(c: Context): Promise<Response> {
         const anthropicModel = mapModel(payload.model)
         const messages = translateMessages(payload.messages)
         const tools = translateTools(payload.tools)
+        const reasoningEffort = (payload as { reasoning_effort?: ReasoningEffort }).reasoning_effort || getSetting("reasoningEffort")
 
         if (payload.stream) {
-            return handleStreamCompletion(c, payload, anthropicModel, messages, tools)
+            return handleStreamCompletion(c, payload, anthropicModel, messages, tools, reasoningEffort)
         }
 
         let result
@@ -72,11 +74,15 @@ export async function handleChatCompletion(c: Context): Promise<Response> {
                 messages,
                 tools,
                 maxTokens: payload.max_tokens || 4096,
+                reasoningEffort,
             })
         } catch (error) {
             if (error instanceof RoutingError) {
                 c.header("X-Log-Reason", buildValidationReason(error.message))
-                return c.json({ error: { type: "invalid_request_error", message: error.message } }, error.status)
+                return new Response(
+                    JSON.stringify({ error: { type: "invalid_request_error", message: error.message } }),
+                    { status: error.status, headers: { "content-type": "application/json" } }
+                )
             }
             throw error
         }
@@ -133,7 +139,8 @@ async function handleStreamCompletion(
     payload: OpenAIChatCompletionRequest,
     anthropicModel: string,
     messages: any[],
-    tools: any[] | undefined
+    tools: any[] | undefined,
+    reasoningEffort: "none" | "low" | "medium" | "high"
 ): Promise<Response> {
     const chatId = generateChatId()
 
@@ -144,6 +151,7 @@ async function handleStreamCompletion(
                 messages,
                 tools,
                 maxTokens: payload.max_tokens || 4096,
+                reasoningEffort,
             })
 
             let sentRole = false

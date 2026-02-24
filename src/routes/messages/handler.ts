@@ -15,6 +15,7 @@ import { rateLimiter } from "~/lib/rate-limiter"
 import { validateAnthropicRequest } from "~/lib/validation"
 import { UpstreamError } from "~/lib/error"
 import { state } from "~/lib/state"
+import { getSetting, type ReasoningEffort } from "~/services/settings"
 import type {
     AnthropicMessagesPayload,
     AnthropicResponse,
@@ -81,6 +82,7 @@ export async function handleCompletion(c: Context): Promise<Response> {
         const messages = translateMessages(payload)
         const tools = extractTools(payload)
         const toolChoice = payload.tool_choice
+        const reasoningEffort = (payload as { reasoning_effort?: ReasoningEffort }).reasoning_effort || getSetting("reasoningEffort")
         if (state.verbose) {
             if (toolChoice) {
                 const choiceName = toolChoice.type === "tool" && toolChoice.name ? `(${toolChoice.name})` : ""
@@ -101,7 +103,7 @@ export async function handleCompletion(c: Context): Promise<Response> {
 
         // 检查是否流式
         if (payload.stream) {
-            return handleStreamCompletion(c, payload, messages, tools, toolChoice)
+            return handleStreamCompletion(c, payload, messages, tools, toolChoice, reasoningEffort)
         }
 
         // 非流式请求
@@ -113,10 +115,14 @@ export async function handleCompletion(c: Context): Promise<Response> {
                 tools,
                 toolChoice,
                 maxTokens: payload.max_tokens,
+                reasoningEffort,
             })
         } catch (error) {
             if (error instanceof RoutingError) {
-                return c.json({ error: { type: "invalid_request_error", message: error.message } }, error.status)
+                return new Response(
+                    JSON.stringify({ error: { type: "invalid_request_error", message: error.message } }),
+                    { status: error.status, headers: { "content-type": "application/json" } }
+                )
             }
             throw error
         }
@@ -169,7 +175,8 @@ async function handleStreamCompletion(
     payload: AnthropicMessagesPayload,
     messages: ClaudeMessage[],
     tools: ClaudeTool[] | undefined,
-    toolChoice: AnthropicMessagesPayload["tool_choice"] | undefined
+    toolChoice: AnthropicMessagesPayload["tool_choice"] | undefined,
+    reasoningEffort: "none" | "low" | "medium" | "high"
 ): Promise<Response> {
     return streamSSE(c, async (stream) => {
         const pingInterval = setInterval(() => {
@@ -182,6 +189,7 @@ async function handleStreamCompletion(
                 tools,
                 toolChoice,
                 maxTokens: payload.max_tokens,
+                reasoningEffort,
             })
 
             // 直接写入来自翻译器的 SSE 事件

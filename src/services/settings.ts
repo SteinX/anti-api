@@ -10,6 +10,7 @@ import { ensureDataDir, getDataDir } from "~/lib/data-dir"
 const SETTINGS_DIR = getDataDir()
 const SETTINGS_FILE = join(SETTINGS_DIR, "settings.json")
 
+export type ReasoningEffort = "none" | "low" | "medium" | "high"
 export interface AppSettings {
     preloadRouting: boolean
     autoNgrok: boolean
@@ -21,6 +22,7 @@ export interface AppSettings {
     trackUsage: boolean
     optimizeQuotaSort: boolean
     captureLogs: boolean
+    reasoningEffort: ReasoningEffort
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -34,6 +36,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     trackUsage: true,
     optimizeQuotaSort: false,
     captureLogs: false,
+    reasoningEffort: "medium",
 }
 
 function ensureSettingsDir(): void {
